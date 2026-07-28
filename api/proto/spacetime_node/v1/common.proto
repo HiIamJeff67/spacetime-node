@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package spacetime_node.v1;
+
+option go_package = "spacetime-node/api/proto/spacetime_node/v1;v1";
+
+// RequestContext is carried by future internal RPC requests. It contains only
+// correlation identifiers and must never include a raw user identifier.
+message RequestContext {
+  string request_id = 1;
+  string trace_id = 2;
+  string journey_id = 3;
+}
