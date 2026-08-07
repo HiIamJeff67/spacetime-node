@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package spacetime_node.v1;
+
+option go_package = "spacetime-node/api/proto/spacetime_node/v1;v1";
+
+import "errors/errors.proto";
+
+// ErrorReason is the stable, client-visible failure vocabulary for the MVP.
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+  INVALID_REQUEST = 1 [(errors.code) = 400];
+  JOURNEY_NOT_FOUND = 2 [(errors.code) = 404];
+  RECOMMENDATION_NOT_FOUND = 3 [(errors.code) = 404];
+  REDEMPTION_NOT_FOUND = 4 [(errors.code) = 404];
+  IDEMPOTENCY_KEY_CONFLICT = 5 [(errors.code) = 409];
+  INSUFFICIENT_POINTS = 6 [(errors.code) = 409];
+  OFFER_UNAVAILABLE = 7 [(errors.code) = 409];
+}

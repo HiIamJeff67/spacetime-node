@@ -1,0 +1,256 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: Spacetime Node API
+    description: Demo API contract for the Spacetime Node backend
+    version: 0.1.0
+paths:
+    /v1/entry-events:
+        post:
+            tags:
+                - JourneyService
+            description: CreateEntryEvent starts the demo journey and asynchronously triggers recommendation.
+            operationId: JourneyService_CreateEntryEvent
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateEntryEventRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateEntryEventResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/recommendations/latest:
+        get:
+            tags:
+                - JourneyService
+            description: GetLatestRecommendation returns the latest recommendation for a journey.
+            operationId: JourneyService_GetLatestRecommendation
+            parameters:
+                - name: request_context.request_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.trace_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.journey_id
+                  in: query
+                  schema:
+                    type: string
+                - name: journey_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetLatestRecommendationResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/redemptions:
+        post:
+            tags:
+                - RedemptionService
+            description: CreateRedemption consumes points and reserves inventory exactly once per key.
+            operationId: RedemptionService_CreateRedemption
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateRedemptionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateRedemptionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/redemptions/{redemption_id}:
+        get:
+            tags:
+                - RedemptionService
+            description: GetRedemption returns the persisted redemption and merchant-verification state.
+            operationId: RedemptionService_GetRedemption
+            parameters:
+                - name: redemption_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: request_context.request_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.trace_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.journey_id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetRedemptionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+components:
+    schemas:
+        CreateEntryEventRequest:
+            type: object
+            properties:
+                request_context:
+                    $ref: '#/components/schemas/RequestContext'
+                user_id_hash:
+                    type: string
+                station_id:
+                    type: string
+                line_id:
+                    type: string
+                position_id:
+                    type: string
+        CreateEntryEventResponse:
+            type: object
+            properties:
+                journey_id:
+                    type: string
+        CreateRedemptionRequest:
+            type: object
+            properties:
+                request_context:
+                    $ref: '#/components/schemas/RequestContext'
+                user_id_hash:
+                    type: string
+                offer_id:
+                    type: string
+                idempotency_key:
+                    type: string
+                    description: For HTTP, the adapter maps the Idempotency-Key header to this field.
+        CreateRedemptionResponse:
+            type: object
+            properties:
+                redemption:
+                    $ref: '#/components/schemas/Redemption'
+        GetLatestRecommendationResponse:
+            type: object
+            properties:
+                recommendation_id:
+                    type: string
+                journey_id:
+                    type: string
+                offer_id:
+                    type: string
+                title:
+                    type: string
+                body:
+                    type: string
+                reasons:
+                    type: array
+                    items:
+                        type: string
+                copy_source:
+                    type: string
+                decision_latency_ms:
+                    type: string
+        GetRedemptionResponse:
+            type: object
+            properties:
+                redemption:
+                    $ref: '#/components/schemas/Redemption'
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        Redemption:
+            type: object
+            properties:
+                redemption_id:
+                    type: string
+                journey_id:
+                    type: string
+                offer_id:
+                    type: string
+                status:
+                    enum:
+                        - REDEMPTION_STATUS_UNSPECIFIED
+                        - REDEMPTION_STATUS_PENDING
+                        - REDEMPTION_STATUS_SUCCEEDED
+                        - REDEMPTION_STATUS_REJECTED
+                        - REDEMPTION_STATUS_VERIFIED
+                    type: string
+                    format: enum
+                points_cost:
+                    type: string
+                merchant_verification_code:
+                    type: string
+        RequestContext:
+            type: object
+            properties:
+                request_id:
+                    type: string
+                trace_id:
+                    type: string
+                journey_id:
+                    type: string
+            description: |-
+                RequestContext is carried by future internal RPC requests. It contains only
+                 correlation identifiers and must never include a raw user identifier.
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
+                message:
+                    type: string
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+tags:
+    - name: JourneyService
+    - name: RedemptionService

@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spacetime-node.local/schemas/events/v1/events.schema.json",
+  "title": "Spacetime Node event envelope v1",
+  "oneOf": [
+    { "$ref": "#/$defs/journeyEntered" },
+    { "$ref": "#/$defs/recommendationCreated" },
+    { "$ref": "#/$defs/notificationSent" },
+    { "$ref": "#/$defs/notificationDelivered" },
+    { "$ref": "#/$defs/recommendationImpressed" },
+    { "$ref": "#/$defs/recommendationClicked" },
+    { "$ref": "#/$defs/redemptionSucceeded" },
+    { "$ref": "#/$defs/merchantVerified" },
+    { "$ref": "#/$defs/offerChanged" },
+    { "$ref": "#/$defs/deadLetter" }
+  ],
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "required": ["event_id", "event_type", "schema_version", "occurred_at", "producer", "trace_id", "payload"],
+      "properties": {
+        "event_id": { "type": "string", "minLength": 1 },
+        "event_type": { "type": "string" },
+        "schema_version": { "const": 1 },
+        "occurred_at": { "type": "string", "format": "date-time" },
+        "producer": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "causation_id": { "type": "string" },
+        "journey_id": { "type": "string" },
+        "recommendation_id": { "type": "string" },
+        "user_id_hash": { "type": "string", "pattern": "^sha256:" },
+        "payload": { "type": "object" }
+      }
+    },
+    "journeyEntered": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "journey.entered.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["station_id"],
+              "properties": {
+                "station_id": { "type": "string", "minLength": 1 },
+                "line_id": { "type": "string" },
+                "position_id": { "type": "string" }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "recommendationCreated": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "recommendation.created.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["recommendation_id", "offer_id", "reasons"],
+              "properties": {
+                "recommendation_id": { "type": "string", "minLength": 1 },
+                "offer_id": { "type": "string", "minLength": 1 },
+                "reasons": { "type": "array", "items": { "type": "string" } }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "redemptionSucceeded": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "redemption.succeeded.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["redemption_id", "offer_id", "points_cost"],
+              "properties": {
+                "redemption_id": { "type": "string", "minLength": 1 },
+                "offer_id": { "type": "string", "minLength": 1 },
+                "points_cost": { "type": "integer", "minimum": 0 }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "notificationSent": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "recommendation_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "notification.sent.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["notification_id", "channel"],
+              "properties": {
+                "notification_id": { "type": "string", "minLength": 1 },
+                "channel": { "enum": ["demo", "push"] }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "notificationDelivered": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "recommendation_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "notification.delivered.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["notification_id", "channel"],
+              "properties": {
+                "notification_id": { "type": "string", "minLength": 1 },
+                "channel": { "enum": ["demo", "push"] }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "recommendationImpressed": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "recommendation_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "recommendation.impressed.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["surface"],
+              "properties": {
+                "surface": { "enum": ["demo"] }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "recommendationClicked": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "recommendation_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "recommendation.clicked.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["surface"],
+              "properties": {
+                "surface": { "enum": ["demo"] }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "merchantVerified": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id"],
+          "properties": {
+            "event_type": { "const": "merchant.verified.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["redemption_id", "merchant_id", "verified_at"],
+              "properties": {
+                "redemption_id": { "type": "string", "minLength": 1 },
+                "merchant_id": { "type": "string", "minLength": 1 },
+                "verified_at": { "type": "string", "format": "date-time" }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "offerChanged": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type"],
+          "properties": {
+            "event_type": { "const": "offer.changed.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["offer_id", "content_version", "change_type"],
+              "properties": {
+                "offer_id": { "type": "string", "minLength": 1 },
+                "content_version": { "type": "integer", "minimum": 1 },
+                "change_type": { "enum": ["UPSERT", "DELETE"] },
+                "title": { "type": "string" },
+                "description": { "type": "string" },
+                "station_id": { "type": "string" },
+                "category": { "type": "string" }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "deadLetter": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type"],
+          "properties": {
+            "event_type": { "const": "dlq.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["failed_consumer", "failure_code", "attempts", "original_event"],
+              "properties": {
+                "failed_consumer": { "type": "string", "minLength": 1 },
+                "failure_code": { "type": "string", "minLength": 1 },
+                "attempts": { "type": "integer", "minimum": 1 },
+                "original_event": { "type": "object" }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

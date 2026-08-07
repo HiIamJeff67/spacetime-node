@@ -24,29 +24,36 @@ type Dependencies struct {
 }
 
 func Load(defaultServiceName, defaultHTTPAddr, defaultGRPCAddr string) Runtime {
-	return Runtime{
-		ServiceName: envOrDefault("SERVICE_NAME", defaultServiceName),
-		HTTPAddr:    envOrDefault("HTTP_ADDR", defaultHTTPAddr),
-		GRPCAddr:    envOrDefault("GRPC_ADDR", defaultGRPCAddr),
+	runtime := Runtime{
+		ServiceName: defaultServiceName,
+		HTTPAddr:    defaultHTTPAddr,
+		GRPCAddr:    defaultGRPCAddr,
 	}
+	if value := os.Getenv("SERVICE_NAME"); value != "" {
+		runtime.ServiceName = value
+	}
+	if value := os.Getenv("HTTP_ADDR"); value != "" {
+		runtime.HTTPAddr = value
+	}
+	if value := os.Getenv("GRPC_ADDR"); value != "" {
+		runtime.GRPCAddr = value
+	}
+	return runtime
 }
 
 func LoadDependencies() Dependencies {
-	return Dependencies{
+	dependencies := Dependencies{
 		KafkaBrokers:  os.Getenv("KAFKA_BROKERS"),
 		PostgresDSN:   os.Getenv("POSTGRES_DSN"),
 		RedisAddr:     os.Getenv("REDIS_ADDR"),
 		ClickHouseDSN: os.Getenv("CLICKHOUSE_DSN"),
 		QdrantURL:     os.Getenv("QDRANT_URL"),
-		LLMMode:       envOrDefault("LLM_MODE", "template"),
+		LLMMode:       "template",
 		LLMBaseURL:    os.Getenv("LLM_BASE_URL"),
 		LLMModel:      os.Getenv("LLM_MODEL"),
 	}
-}
-
-func envOrDefault(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	if value := os.Getenv("LLM_MODE"); value != "" {
+		dependencies.LLMMode = value
 	}
-	return fallback
+	return dependencies
 }

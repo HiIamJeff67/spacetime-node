@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package spacetime_node.v1;
+
+option go_package = "spacetime-node/api/proto/spacetime_node/v1;v1";
+
+import "api/proto/spacetime_node/v1/common.proto";
+import "google/api/annotations.proto";
+
+service RedemptionService {
+  // CreateRedemption consumes points and reserves inventory exactly once per key.
+  rpc CreateRedemption(CreateRedemptionRequest) returns (CreateRedemptionResponse) {
+    option (google.api.http) = {
+      post: "/v1/redemptions"
+      body: "*"
+    };
+  }
+
+  // GetRedemption returns the persisted redemption and merchant-verification state.
+  rpc GetRedemption(GetRedemptionRequest) returns (GetRedemptionResponse) {
+    option (google.api.http) = {get: "/v1/redemptions/{redemption_id}"};
+  }
+}
+
+message CreateRedemptionRequest {
+  RequestContext request_context = 1;
+  string user_id_hash = 2;
+  string offer_id = 3;
+  // For HTTP, the adapter maps the Idempotency-Key header to this field.
+  string idempotency_key = 4;
+}
+
+message CreateRedemptionResponse {
+  Redemption redemption = 1;
+}
+
+message GetRedemptionRequest {
+  RequestContext request_context = 1;
+  string redemption_id = 2;
+}
+
+message GetRedemptionResponse {
+  Redemption redemption = 1;
+}
+
+message Redemption {
+  string redemption_id = 1;
+  string journey_id = 2;
+  string offer_id = 3;
+  RedemptionStatus status = 4;
+  int64 points_cost = 5;
+  string merchant_verification_code = 6;
+}
+
+enum RedemptionStatus {
+  REDEMPTION_STATUS_UNSPECIFIED = 0;
+  REDEMPTION_STATUS_PENDING = 1;
+  REDEMPTION_STATUS_SUCCEEDED = 2;
+  REDEMPTION_STATUS_REJECTED = 3;
+  REDEMPTION_STATUS_VERIFIED = 4;
+}

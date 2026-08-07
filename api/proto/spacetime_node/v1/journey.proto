@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package spacetime_node.v1;
+
+option go_package = "spacetime-node/api/proto/spacetime_node/v1;v1";
+
+import "api/proto/spacetime_node/v1/common.proto";
+import "google/api/annotations.proto";
+
+service JourneyService {
+  // CreateEntryEvent starts the demo journey and asynchronously triggers recommendation.
+  rpc CreateEntryEvent(CreateEntryEventRequest) returns (CreateEntryEventResponse) {
+    option (google.api.http) = {
+      post: "/v1/entry-events"
+      body: "*"
+    };
+  }
+
+  // GetLatestRecommendation returns the latest recommendation for a journey.
+  rpc GetLatestRecommendation(GetLatestRecommendationRequest) returns (GetLatestRecommendationResponse) {
+    option (google.api.http) = {get: "/v1/recommendations/latest"};
+  }
+}
+
+message CreateEntryEventRequest {
+  RequestContext request_context = 1;
+  string user_id_hash = 2;
+  string station_id = 3;
+  string line_id = 4;
+  string position_id = 5;
+}
+
+message CreateEntryEventResponse {
+  string journey_id = 1;
+}
+
+message GetLatestRecommendationRequest {
+  RequestContext request_context = 1;
+  string journey_id = 2;
+}
+
+message GetLatestRecommendationResponse {
+  string recommendation_id = 1;
+  string journey_id = 2;
+  string offer_id = 3;
+  string title = 4;
+  string body = 5;
+  repeated string reasons = 6;
+  string copy_source = 7;
+  int64 decision_latency_ms = 8;
+}

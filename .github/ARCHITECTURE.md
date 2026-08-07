@@ -22,6 +22,7 @@ PostgreSQL 是點數、庫存與兌換的唯一真實來源；Kafka 保存領域
 | `gateway-service` | Demo HTTP API、建立 journey、寫入 entry event | 入口協調，不承載推薦或交易規則 |
 | `mobility-service` | 北捷 Beacon/ SOAP API 的 anti-corruption layer、站點脈絡與快取 | 捷運帳密、外部 API 格式、station/position context |
 | `recommendation-service` | Qdrant 候選召回、PostgreSQL 驗證、規則排序、受控文案 | recommendation records 與 explainability |
+| `embedding-indexer` | 消費 `offer.changed.v1`、產生 embedding、更新 Qdrant | `offer_embeddings_v1` 可重建索引 |
 | `redemption-service` | 點數扣除、庫存保留、冪等兌換、核銷 mock、outbox | points ledger、inventory、redemptions |
 | `analytics-consumer` | 消費產品事件並寫入 ClickHouse | 分析 projection；不是交易真實來源 |
 
@@ -48,12 +49,17 @@ flowchart LR
 
 The synchronous path is deliberately short: Gateway resolves a Beacon through `mobility-service`, then records `journey.entered`. Recommendation is triggered asynchronously from the Kafka event. If real-time metro enrichment fails or exceeds its deadline, the system falls back to cached/station-level context; it must never block redemption.
 
+`redemption-service` serializes a user's redemption attempts by locking the user row before checking `Idempotency-Key`, then locks the target inventory row in the same transaction. A replay with the same journey and offer returns the original redemption; reuse for different inputs returns a conflict. The successful transaction also appends a `redemption.succeeded.v1` envelope to PostgreSQL outbox; a Kafka publisher marks it sent only after Kafka accepts it. Consumer side effects run with a `processed_events` insert in one transaction, so replays are skipped.
+
 ## Contracts and events
 
-- `api/proto/spacetime_node/v1/` is the source for internal gRPC and generated demo HTTP/OpenAPI contracts. `common.proto` currently defines correlation context only; service contracts are introduced with their owning Sprint work.
-- `api/events/` holds versioned Kafka payload examples and schemas.
+- `api/proto/spacetime_node/v1/` is the source for internal gRPC and generated demo HTTP/OpenAPI contracts. `journey.proto` defines entry/recommendation reads, `redemption.proto` defines redemption writes/reads, and `errors.proto` fixes client-visible failure reasons. Run `make proto` after a contract change.
+- `api/events/v1/events.schema.json` is the versioned Kafka envelope and topic payload source; `api/events/v1/README.md` fixes producer, consumer, partition-key, replay, and compatibility rules.
+- `api/openapi/openapi.yaml` is generated from Proto by `make openapi`; `api/schemas/` holds CopyGenerator JSON Schemas.
 - Every event carries `event_id`, `trace_id`, `causation_id`, `journey_id`, `schema_version`, and only a hashed user identifier.
-- Initial topics: `journey.entered.v1`, `recommendation.created.v1`, `redemption.succeeded.v1`, `merchant.verified.v1`, `offer.changed.v1`, and `dlq.v1`.
+- Recommendation decisions persist the selected copy source plus a candidate summary (vector score, rule score, eligibility, and reasons); the latest-recommendation API exposes the selected result, explainability, copy source, and decision latency.
+- `recommendation.OfferIndexer` bootstraps `offer_embeddings_v1`, indexes station/category/version payloads, and treats `offer.changed.v1` as the rebuildable Qdrant write contract; PostgreSQL remains the offer source of truth.
+- Initial topics: `journey.entered.v1`, `recommendation.created.v1`, `notification.sent.v1`, `notification.delivered.v1`, `recommendation.impressed.v1`, `recommendation.clicked.v1`, `redemption.succeeded.v1`, `merchant.verified.v1`, `offer.changed.v1`, and `dlq.v1`.
 
 ## File structure
 
@@ -66,10 +72,12 @@ The synchronous path is deliberately short: Gateway resolves a Beacon through `m
 ├── api/
 │   ├── events/                    # Versioned Kafka schema and example payloads
 │   ├── openapi/                   # Generated OpenAPI output (not hand-edited)
-│   └── proto/spacetime_node/v1/   # Proto source of truth
+│   ├── proto/spacetime_node/v1/   # Proto source of truth
+│   └── schemas/                   # CopyGenerator JSON Schema contracts
 ├── cmd/
 │   ├── analytics/                 # analytics-consumer executable
 │   ├── gateway/                   # gateway-service executable
+│   ├── embedding-indexer/          # offer.changed.v1 -> Qdrant worker
 │   ├── mobility/                  # mobility-service executable
 │   ├── recommendation/            # recommendation-service executable
 │   └── redemption/                # redemption-service executable
@@ -89,19 +97,18 @@ The synchronous path is deliberately short: Gateway resolves a Beacon through `m
 │   ├── platform/
 │   │   ├── app/                   # Kratos HTTP/gRPC bootstrap and health endpoints
 │   │   ├── config/                # Shared typed environment/configuration loading
-│   │   ├── events/                # Kafka envelope, producer/consumer support
+│   │   ├── outbox/                # Kafka publisher and transactional consumer deduplication
 │   │   └── observability/         # OTel setup and safe log fields
 │   ├── recommendation/            # Retrieval, rule ranking, copy fallback
 │   └── redemption/                # Ledger, inventory, outbox, verification mock
 ├── migrations/
-│   ├── mobility/                  # Station catalogue / integration state
-│   ├── recommendation/            # Offer and recommendation records
-│   └── redemption/                # Points, inventory, redemption, outbox
+│   └── postgres/                  # Ordered schema + deterministic demo seed
 ├── scripts/                       # Repeatable local seed, demo, and verification commands
 ├── test/
 │   └── fixtures/metro/            # Sanitised Beacon / SOAP response fixtures
 ├── .env.example                   # Non-secret local environment template
 ├── Dockerfile                      # One parameterised image for all service binaries
+├── Makefile                        # Reproducible Proto stub generation
 ├── README.md
 └── go.mod
 ```

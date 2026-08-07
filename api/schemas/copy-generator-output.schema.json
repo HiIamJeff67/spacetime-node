@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spacetime-node.local/schemas/copy-generator-output.schema.json",
+  "title": "CopyGenerator output",
+  "type": "object",
+  "required": ["title", "body", "tone"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "body": { "type": "string", "minLength": 1, "maxLength": 140 },
+    "tone": { "enum": ["friendly", "calm", "urgent"] }
+  },
+  "additionalProperties": false
+}

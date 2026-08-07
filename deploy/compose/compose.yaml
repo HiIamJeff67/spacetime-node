@@ -77,6 +77,17 @@ services:
       - "127.0.0.1:8002:8002"
       - "127.0.0.1:9002:9002"
 
+  embedding-indexer:
+    <<: *app-common
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        SERVICE: embedding-indexer
+    environment:
+      <<: *dependency-env
+      SERVICE_NAME: embedding-indexer
+
   redemption:
     <<: *app-common
     build:
@@ -103,6 +114,7 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ../../migrations/postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s

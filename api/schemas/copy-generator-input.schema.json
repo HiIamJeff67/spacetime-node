@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spacetime-node.local/schemas/copy-generator-input.schema.json",
+  "title": "CopyGenerator facts input",
+  "type": "object",
+  "required": ["station_name", "offer_name", "points_cost", "discount_description", "reason_labels"],
+  "properties": {
+    "station_name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "offer_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "points_cost": { "type": "integer", "minimum": 0 },
+    "discount_description": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "reason_labels": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "string", "maxLength": 40 } },
+    "time_context": { "type": "string", "maxLength": 40 }
+  },
+  "additionalProperties": false
+}

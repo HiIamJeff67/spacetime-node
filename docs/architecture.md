@@ -46,9 +46,11 @@
 flowchart LR
     D["Demo CLI / 極小前端"] -->|HTTP| G["Gateway Service"]
     G -->|publish| K["Apache Kafka"]
-    K -->|metro.entry.v1| R["Recommendation Service"]
+    K -->|offer.changed.v1| I["Embedding Indexer"]
+    I -->|upsert| VDB["Qdrant\n向量索引"]
+    K -->|journey.entered.v1| R["Recommendation Service"]
     R -->|read cached preference| Redis["Redis"]
-    R -->|top-K offer IDs| VDB["Qdrant\n向量索引"]
+    R -->|top-K offer IDs| VDB
     R -->|read offers / write recommendation| PG[("PostgreSQL")]
     R -->|optional, deadline-bound facts| LLM["輕量開源 LLM\n文案 adapter"]
     R -->|publish recommendation.created.v1| K
@@ -66,12 +68,13 @@ flowchart LR
 
 ## 4. 服務邊界
 
-MVP 採用三個可獨立部署的 Go / Kratos 服務；不依照原始構想拆成七個服務，避免單人開發時把成本耗在網路呼叫、設定與部署上。
+MVP 採用四個 API 服務與獨立 worker；不依照原始構想拆成七個服務，避免單人開發時把成本耗在網路呼叫、設定與部署上。
 
 | 服務 | 責任 | 對外／對內介面 | MVP 不做什麼 |
 |---|---|---|---|
 | `gateway-service` | 接收模擬進站、提供查詢推薦等 BFF API、建立旅程識別 | HTTP；發布 Kafka | 真實閘門／北捷會員介接 |
 | `recommendation-service` | 讀取偏好快取、向量召回候選、規則篩選與排序、保存推薦 | Kafka consumer、gRPC／HTTP（內部） | 真正模型訓練、讓 LLM 決策 |
+| `embedding-indexer` | 消費優惠變更事件、產生 embedding、更新 Qdrant 可重建索引 | Kafka consumer | 正式模型訓練與 GPU serving |
 | `redemption-service` | 點數扣除、庫存保留、兌換單、核銷 mock、outbox | HTTP／gRPC；發布 Kafka | 真實 POS、支付與退款流程 |
 | `analytics-consumer` | 消費產品事件、寫入 ClickHouse、產出漏斗資料 | Kafka consumer | 線上推薦決策 |
 
@@ -113,7 +116,7 @@ Qdrant 同樣是可重建的衍生索引：`offer.changed.v1` 由 embedding inde
 | `POST` | `/v1/entry-events` | 模擬使用者在指定站點進站，建立旅程並觸發推薦 |
 | `GET` | `/v1/recommendations/latest?journey_id=...` | 取得最新推薦結果 |
 | `POST` | `/v1/redemptions` | 建立兌換；請求需有 `Idempotency-Key` |
-| `GET` | `/v1/redemptions/{id}` | 查詢兌換與核銷狀態 |
+| `GET` | `/v1/redemptions/{redemption_id}` | 查詢兌換與核銷狀態 |
 | `POST` | `/v1/merchant-verifications` | 模擬商家 POS 核銷 |
 | `GET` | `/healthz` | health check |
 
@@ -145,14 +148,15 @@ HTTP 是 demo 與外部呼叫入口；服務內部需要同步協作時使用 gR
 
 | Topic | Producer | Consumer | Key | 用途 |
 |---|---|---|---|---|
-| `metro.entry.v1` | gateway | recommendation | `user_id_hash` | 進站觸發 |
+| `journey.entered.v1` | gateway | recommendation | `user_id_hash` | 進站觸發 |
 | `recommendation.created.v1` | recommendation | notification mock、analytics | `user_id_hash` | 推薦已產生 |
-| `notification.sent.v1` | notification mock | analytics | `journey_id` | 推播送出 |
-| `notification.delivered.v1` | notification mock | analytics | `journey_id` | 供應商／裝置確認送達 |
-| `recommendation.impressed.v1` | demo client | analytics | `journey_id` | 使用者實際看到內容 |
-| `recommendation.clicked.v1` | demo client | analytics | `journey_id` | 使用者開啟或點擊 |
+| `notification.sent.v1` | notification mock | analytics | `user_id_hash` | 推播送出 |
+| `notification.delivered.v1` | notification mock | analytics | `user_id_hash` | 供應商／裝置確認送達 |
+| `recommendation.impressed.v1` | demo client | analytics | `user_id_hash` | 使用者實際看到內容 |
+| `recommendation.clicked.v1` | demo client | analytics | `user_id_hash` | 使用者開啟或點擊 |
 | `redemption.succeeded.v1` | redemption | analytics | `user_id_hash` | 兌換交易成功 |
 | `merchant.verified.v1` | merchant mock | analytics | `journey_id` | 商家核銷，最強轉換證據 |
+| `offer.changed.v1` | offer administration / seed importer | embedding indexer | `offer_id` | 更新可重建的優惠向量索引 |
 | `dlq.v1` | 各 consumer | 維運人員 | 原 event key | 失敗事件保留與人工檢查 |
 
 同一個 `user_id_hash` 會寫入同一 partition，確保同一使用者的進站、推薦與兌換順序在該 partition 內一致。不同 consumer group 可獨立消費相同事件：推薦、分析與可觀測性不互相阻塞。
@@ -245,7 +249,7 @@ sequenceDiagram
 
     C->>G: POST /v1/entry-events
     G->>G: 建立 journey_id 與 trace context
-    G->>K: metro.entry.v1
+    G->>K: journey.entered.v1
     K->>R: consume entry event
     R->>Redis: 讀取預算偏好與預測目的地
     R->>V: 語意檢索 top-K 候選 offer IDs
