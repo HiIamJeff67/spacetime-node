@@ -19,18 +19,22 @@ const _ = http.SupportPackageIsVersion3
 
 const OperationRedemptionServiceCreateRedemption = "/spacetime_node.v1.RedemptionService/CreateRedemption"
 const OperationRedemptionServiceGetRedemption = "/spacetime_node.v1.RedemptionService/GetRedemption"
+const OperationRedemptionServiceVerifyRedemption = "/spacetime_node.v1.RedemptionService/VerifyRedemption"
 
 type RedemptionServiceHTTPServer interface {
 	// CreateRedemption CreateRedemption consumes points and reserves inventory exactly once per key.
 	CreateRedemption(context.Context, *CreateRedemptionRequest) (*CreateRedemptionResponse, error)
 	// GetRedemption GetRedemption returns the persisted redemption and merchant-verification state.
 	GetRedemption(context.Context, *GetRedemptionRequest) (*GetRedemptionResponse, error)
+	// VerifyRedemption VerifyRedemption is a demo merchant verification endpoint.
+	VerifyRedemption(context.Context, *VerifyRedemptionRequest) (*VerifyRedemptionResponse, error)
 }
 
 func RegisterRedemptionServiceHTTPServer(s *http.Server, srv RedemptionServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("POST", "/v1/redemptions", _RedemptionService_CreateRedemption0_HTTP_Handler(srv))
 	r.Handle("GET", "/v1/redemptions/{redemption_id}", _RedemptionService_GetRedemption0_HTTP_Handler(srv))
+	r.Handle("POST", "/v1/redemptions/{redemption_id}/verify", _RedemptionService_VerifyRedemption0_HTTP_Handler(srv))
 }
 
 func _RedemptionService_CreateRedemption0_HTTP_Handler(srv RedemptionServiceHTTPServer) func(ctx http.Context) error {
@@ -74,11 +78,35 @@ func _RedemptionService_GetRedemption0_HTTP_Handler(srv RedemptionServiceHTTPSer
 	}
 }
 
+func _RedemptionService_VerifyRedemption0_HTTP_Handler(srv RedemptionServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in VerifyRedemptionRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationRedemptionServiceVerifyRedemption)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.VerifyRedemption(ctx, req.(*VerifyRedemptionRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VerifyRedemptionResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
 type RedemptionServiceHTTPClient interface {
 	// CreateRedemption CreateRedemption consumes points and reserves inventory exactly once per key.
 	CreateRedemption(ctx context.Context, req *CreateRedemptionRequest, opts ...http.CallOption) (rsp *CreateRedemptionResponse, err error)
 	// GetRedemption GetRedemption returns the persisted redemption and merchant-verification state.
 	GetRedemption(ctx context.Context, req *GetRedemptionRequest, opts ...http.CallOption) (rsp *GetRedemptionResponse, err error)
+	// VerifyRedemption VerifyRedemption is a demo merchant verification endpoint.
+	VerifyRedemption(ctx context.Context, req *VerifyRedemptionRequest, opts ...http.CallOption) (rsp *VerifyRedemptionResponse, err error)
 }
 
 type RedemptionServiceHTTPClientImpl struct {
@@ -118,6 +146,24 @@ func (c *RedemptionServiceHTTPClientImpl) GetRedemption(ctx context.Context, in 
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// VerifyRedemption VerifyRedemption is a demo merchant verification endpoint.
+func (c *RedemptionServiceHTTPClientImpl) VerifyRedemption(ctx context.Context, in *VerifyRedemptionRequest, opts ...http.CallOption) (*VerifyRedemptionResponse, error) {
+	var out VerifyRedemptionResponse
+	pattern := "/v1/redemptions/{redemption_id}/verify"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationRedemptionServiceVerifyRedemption),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

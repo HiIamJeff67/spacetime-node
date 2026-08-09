@@ -286,6 +286,118 @@ func (x *GetRedemptionResponse) GetRedemption() *Redemption {
 	return nil
 }
 
+type VerifyRedemptionRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	RequestContext   *RequestContext        `protobuf:"bytes,1,opt,name=request_context,json=requestContext,proto3" json:"request_context,omitempty"`
+	RedemptionId     string                 `protobuf:"bytes,2,opt,name=redemption_id,json=redemptionId,proto3" json:"redemption_id,omitempty"`
+	MerchantId       string                 `protobuf:"bytes,3,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
+	VerificationCode string                 `protobuf:"bytes,4,opt,name=verification_code,json=verificationCode,proto3" json:"verification_code,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *VerifyRedemptionRequest) Reset() {
+	*x = VerifyRedemptionRequest{}
+	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyRedemptionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyRedemptionRequest) ProtoMessage() {}
+
+func (x *VerifyRedemptionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyRedemptionRequest.ProtoReflect.Descriptor instead.
+func (*VerifyRedemptionRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_spacetime_node_v1_redemption_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *VerifyRedemptionRequest) GetRequestContext() *RequestContext {
+	if x != nil {
+		return x.RequestContext
+	}
+	return nil
+}
+
+func (x *VerifyRedemptionRequest) GetRedemptionId() string {
+	if x != nil {
+		return x.RedemptionId
+	}
+	return ""
+}
+
+func (x *VerifyRedemptionRequest) GetMerchantId() string {
+	if x != nil {
+		return x.MerchantId
+	}
+	return ""
+}
+
+func (x *VerifyRedemptionRequest) GetVerificationCode() string {
+	if x != nil {
+		return x.VerificationCode
+	}
+	return ""
+}
+
+type VerifyRedemptionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Redemption    *Redemption            `protobuf:"bytes,1,opt,name=redemption,proto3" json:"redemption,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyRedemptionResponse) Reset() {
+	*x = VerifyRedemptionResponse{}
+	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyRedemptionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyRedemptionResponse) ProtoMessage() {}
+
+func (x *VerifyRedemptionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyRedemptionResponse.ProtoReflect.Descriptor instead.
+func (*VerifyRedemptionResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_spacetime_node_v1_redemption_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *VerifyRedemptionResponse) GetRedemption() *Redemption {
+	if x != nil {
+		return x.Redemption
+	}
+	return nil
+}
+
 type Redemption struct {
 	state                    protoimpl.MessageState `protogen:"open.v1"`
 	RedemptionId             string                 `protobuf:"bytes,1,opt,name=redemption_id,json=redemptionId,proto3" json:"redemption_id,omitempty"`
@@ -300,7 +412,7 @@ type Redemption struct {
 
 func (x *Redemption) Reset() {
 	*x = Redemption{}
-	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[4]
+	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -312,7 +424,7 @@ func (x *Redemption) String() string {
 func (*Redemption) ProtoMessage() {}
 
 func (x *Redemption) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[4]
+	mi := &file_api_proto_spacetime_node_v1_redemption_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,7 +437,7 @@ func (x *Redemption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Redemption.ProtoReflect.Descriptor instead.
 func (*Redemption) Descriptor() ([]byte, []int) {
-	return file_api_proto_spacetime_node_v1_redemption_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_spacetime_node_v1_redemption_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Redemption) GetRedemptionId() string {
@@ -391,6 +503,16 @@ const file_api_proto_spacetime_node_v1_redemption_proto_rawDesc = "" +
 	"\x15GetRedemptionResponse\x12=\n" +
 	"\n" +
 	"redemption\x18\x01 \x01(\v2\x1d.spacetime_node.v1.RedemptionR\n" +
+	"redemption\"\xd8\x01\n" +
+	"\x17VerifyRedemptionRequest\x12J\n" +
+	"\x0frequest_context\x18\x01 \x01(\v2!.spacetime_node.v1.RequestContextR\x0erequestContext\x12#\n" +
+	"\rredemption_id\x18\x02 \x01(\tR\fredemptionId\x12\x1f\n" +
+	"\vmerchant_id\x18\x03 \x01(\tR\n" +
+	"merchantId\x12+\n" +
+	"\x11verification_code\x18\x04 \x01(\tR\x10verificationCode\"Y\n" +
+	"\x18VerifyRedemptionResponse\x12=\n" +
+	"\n" +
+	"redemption\x18\x01 \x01(\v2\x1d.spacetime_node.v1.RedemptionR\n" +
 	"redemption\"\x87\x02\n" +
 	"\n" +
 	"Redemption\x12#\n" +
@@ -407,10 +529,11 @@ const file_api_proto_spacetime_node_v1_redemption_proto_rawDesc = "" +
 	"\x19REDEMPTION_STATUS_PENDING\x10\x01\x12\x1f\n" +
 	"\x1bREDEMPTION_STATUS_SUCCEEDED\x10\x02\x12\x1e\n" +
 	"\x1aREDEMPTION_STATUS_REJECTED\x10\x03\x12\x1e\n" +
-	"\x1aREDEMPTION_STATUS_VERIFIED\x10\x042\xab\x02\n" +
+	"\x1aREDEMPTION_STATUS_VERIFIED\x10\x042\xcc\x03\n" +
 	"\x11RedemptionService\x12\x87\x01\n" +
 	"\x10CreateRedemption\x12*.spacetime_node.v1.CreateRedemptionRequest\x1a+.spacetime_node.v1.CreateRedemptionResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/redemptions\x12\x8b\x01\n" +
-	"\rGetRedemption\x12'.spacetime_node.v1.GetRedemptionRequest\x1a(.spacetime_node.v1.GetRedemptionResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/v1/redemptions/{redemption_id}B/Z-spacetime-node/api/proto/spacetime_node/v1;v1b\x06proto3"
+	"\rGetRedemption\x12'.spacetime_node.v1.GetRedemptionRequest\x1a(.spacetime_node.v1.GetRedemptionResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/v1/redemptions/{redemption_id}\x12\x9e\x01\n" +
+	"\x10VerifyRedemption\x12*.spacetime_node.v1.VerifyRedemptionRequest\x1a+.spacetime_node.v1.VerifyRedemptionResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/redemptions/{redemption_id}/verifyB/Z-spacetime-node/api/proto/spacetime_node/v1;v1b\x06proto3"
 
 var (
 	file_api_proto_spacetime_node_v1_redemption_proto_rawDescOnce sync.Once
@@ -425,31 +548,37 @@ func file_api_proto_spacetime_node_v1_redemption_proto_rawDescGZIP() []byte {
 }
 
 var file_api_proto_spacetime_node_v1_redemption_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_proto_spacetime_node_v1_redemption_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_api_proto_spacetime_node_v1_redemption_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_api_proto_spacetime_node_v1_redemption_proto_goTypes = []any{
 	(RedemptionStatus)(0),            // 0: spacetime_node.v1.RedemptionStatus
 	(*CreateRedemptionRequest)(nil),  // 1: spacetime_node.v1.CreateRedemptionRequest
 	(*CreateRedemptionResponse)(nil), // 2: spacetime_node.v1.CreateRedemptionResponse
 	(*GetRedemptionRequest)(nil),     // 3: spacetime_node.v1.GetRedemptionRequest
 	(*GetRedemptionResponse)(nil),    // 4: spacetime_node.v1.GetRedemptionResponse
-	(*Redemption)(nil),               // 5: spacetime_node.v1.Redemption
-	(*RequestContext)(nil),           // 6: spacetime_node.v1.RequestContext
+	(*VerifyRedemptionRequest)(nil),  // 5: spacetime_node.v1.VerifyRedemptionRequest
+	(*VerifyRedemptionResponse)(nil), // 6: spacetime_node.v1.VerifyRedemptionResponse
+	(*Redemption)(nil),               // 7: spacetime_node.v1.Redemption
+	(*RequestContext)(nil),           // 8: spacetime_node.v1.RequestContext
 }
 var file_api_proto_spacetime_node_v1_redemption_proto_depIdxs = []int32{
-	6, // 0: spacetime_node.v1.CreateRedemptionRequest.request_context:type_name -> spacetime_node.v1.RequestContext
-	5, // 1: spacetime_node.v1.CreateRedemptionResponse.redemption:type_name -> spacetime_node.v1.Redemption
-	6, // 2: spacetime_node.v1.GetRedemptionRequest.request_context:type_name -> spacetime_node.v1.RequestContext
-	5, // 3: spacetime_node.v1.GetRedemptionResponse.redemption:type_name -> spacetime_node.v1.Redemption
-	0, // 4: spacetime_node.v1.Redemption.status:type_name -> spacetime_node.v1.RedemptionStatus
-	1, // 5: spacetime_node.v1.RedemptionService.CreateRedemption:input_type -> spacetime_node.v1.CreateRedemptionRequest
-	3, // 6: spacetime_node.v1.RedemptionService.GetRedemption:input_type -> spacetime_node.v1.GetRedemptionRequest
-	2, // 7: spacetime_node.v1.RedemptionService.CreateRedemption:output_type -> spacetime_node.v1.CreateRedemptionResponse
-	4, // 8: spacetime_node.v1.RedemptionService.GetRedemption:output_type -> spacetime_node.v1.GetRedemptionResponse
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	8,  // 0: spacetime_node.v1.CreateRedemptionRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	7,  // 1: spacetime_node.v1.CreateRedemptionResponse.redemption:type_name -> spacetime_node.v1.Redemption
+	8,  // 2: spacetime_node.v1.GetRedemptionRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	7,  // 3: spacetime_node.v1.GetRedemptionResponse.redemption:type_name -> spacetime_node.v1.Redemption
+	8,  // 4: spacetime_node.v1.VerifyRedemptionRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	7,  // 5: spacetime_node.v1.VerifyRedemptionResponse.redemption:type_name -> spacetime_node.v1.Redemption
+	0,  // 6: spacetime_node.v1.Redemption.status:type_name -> spacetime_node.v1.RedemptionStatus
+	1,  // 7: spacetime_node.v1.RedemptionService.CreateRedemption:input_type -> spacetime_node.v1.CreateRedemptionRequest
+	3,  // 8: spacetime_node.v1.RedemptionService.GetRedemption:input_type -> spacetime_node.v1.GetRedemptionRequest
+	5,  // 9: spacetime_node.v1.RedemptionService.VerifyRedemption:input_type -> spacetime_node.v1.VerifyRedemptionRequest
+	2,  // 10: spacetime_node.v1.RedemptionService.CreateRedemption:output_type -> spacetime_node.v1.CreateRedemptionResponse
+	4,  // 11: spacetime_node.v1.RedemptionService.GetRedemption:output_type -> spacetime_node.v1.GetRedemptionResponse
+	6,  // 12: spacetime_node.v1.RedemptionService.VerifyRedemption:output_type -> spacetime_node.v1.VerifyRedemptionResponse
+	10, // [10:13] is the sub-list for method output_type
+	7,  // [7:10] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_spacetime_node_v1_redemption_proto_init() }
@@ -464,7 +593,7 @@ func file_api_proto_spacetime_node_v1_redemption_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_spacetime_node_v1_redemption_proto_rawDesc), len(file_api_proto_spacetime_node_v1_redemption_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

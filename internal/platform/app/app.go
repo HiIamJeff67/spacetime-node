@@ -20,7 +20,13 @@ type status struct {
 	Status  string `json:"status"`
 }
 
+type Setup func(*khttp.Server, *kgrpc.Server) error
+
 func Run(defaultServiceName, defaultHTTPAddr, defaultGRPCAddr, version string) error {
+	return RunWithSetup(defaultServiceName, defaultHTTPAddr, defaultGRPCAddr, version, nil)
+}
+
+func RunWithSetup(defaultServiceName, defaultHTTPAddr, defaultGRPCAddr, version string, setup Setup) error {
 	runtime := config.Load(defaultServiceName, defaultHTTPAddr, defaultGRPCAddr)
 	httpServer := khttp.NewServer(
 		khttp.Address(runtime.HTTPAddr),
@@ -33,6 +39,11 @@ func Run(defaultServiceName, defaultHTTPAddr, defaultGRPCAddr, version string) e
 		kgrpc.Address(runtime.GRPCAddr),
 		kgrpc.Middleware(recovery.Recovery()),
 	)
+	if setup != nil {
+		if err := setup(httpServer, grpcServer); err != nil {
+			return err
+		}
+	}
 
 	id, err := os.Hostname()
 	if err != nil {

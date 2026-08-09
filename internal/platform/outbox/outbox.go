@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -44,6 +46,30 @@ func NewPublisher(db *sql.DB, writer Writer) *Publisher {
 
 func NewKafkaPublisher(db *sql.DB, brokers []string) *Publisher {
 	return NewPublisher(db, &kafka.Writer{Addr: kafka.TCP(brokers...)})
+}
+
+func RunPublisher(ctx context.Context, publisher *Publisher, limit int, interval time.Duration, logger *log.Logger) {
+	if publisher == nil || limit < 1 {
+		return
+	}
+	if interval <= 0 {
+		interval = time.Second
+	}
+	if logger == nil {
+		logger = log.Default()
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		if _, err := publisher.PublishPending(ctx, limit); err != nil && ctx.Err() == nil {
+			logger.Printf("outbox publish failed: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func (p *Publisher) PublishPending(ctx context.Context, limit int) (int, error) {

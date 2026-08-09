@@ -130,6 +130,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/redemptions/{redemption_id}/verify:
+        post:
+            tags:
+                - RedemptionService
+            description: VerifyRedemption is a demo merchant verification endpoint.
+            operationId: RedemptionService_VerifyRedemption
+            parameters:
+                - name: redemption_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/VerifyRedemptionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/VerifyRedemptionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
     schemas:
         CreateEntryEventRequest:
@@ -251,6 +282,22 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        VerifyRedemptionRequest:
+            type: object
+            properties:
+                request_context:
+                    $ref: '#/components/schemas/RequestContext'
+                redemption_id:
+                    type: string
+                merchant_id:
+                    type: string
+                verification_code:
+                    type: string
+        VerifyRedemptionResponse:
+            type: object
+            properties:
+                redemption:
+                    $ref: '#/components/schemas/Redemption'
 tags:
     - name: JourneyService
     - name: RedemptionService

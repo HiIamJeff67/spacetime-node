@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	RedemptionService_CreateRedemption_FullMethodName = "/spacetime_node.v1.RedemptionService/CreateRedemption"
 	RedemptionService_GetRedemption_FullMethodName    = "/spacetime_node.v1.RedemptionService/GetRedemption"
+	RedemptionService_VerifyRedemption_FullMethodName = "/spacetime_node.v1.RedemptionService/VerifyRedemption"
 )
 
 // RedemptionServiceClient is the client API for RedemptionService service.
@@ -31,6 +32,8 @@ type RedemptionServiceClient interface {
 	CreateRedemption(ctx context.Context, in *CreateRedemptionRequest, opts ...grpc.CallOption) (*CreateRedemptionResponse, error)
 	// GetRedemption returns the persisted redemption and merchant-verification state.
 	GetRedemption(ctx context.Context, in *GetRedemptionRequest, opts ...grpc.CallOption) (*GetRedemptionResponse, error)
+	// VerifyRedemption is a demo merchant verification endpoint.
+	VerifyRedemption(ctx context.Context, in *VerifyRedemptionRequest, opts ...grpc.CallOption) (*VerifyRedemptionResponse, error)
 }
 
 type redemptionServiceClient struct {
@@ -61,6 +64,16 @@ func (c *redemptionServiceClient) GetRedemption(ctx context.Context, in *GetRede
 	return out, nil
 }
 
+func (c *redemptionServiceClient) VerifyRedemption(ctx context.Context, in *VerifyRedemptionRequest, opts ...grpc.CallOption) (*VerifyRedemptionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyRedemptionResponse)
+	err := c.cc.Invoke(ctx, RedemptionService_VerifyRedemption_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RedemptionServiceServer is the server API for RedemptionService service.
 // All implementations must embed UnimplementedRedemptionServiceServer
 // for forward compatibility.
@@ -69,6 +82,8 @@ type RedemptionServiceServer interface {
 	CreateRedemption(context.Context, *CreateRedemptionRequest) (*CreateRedemptionResponse, error)
 	// GetRedemption returns the persisted redemption and merchant-verification state.
 	GetRedemption(context.Context, *GetRedemptionRequest) (*GetRedemptionResponse, error)
+	// VerifyRedemption is a demo merchant verification endpoint.
+	VerifyRedemption(context.Context, *VerifyRedemptionRequest) (*VerifyRedemptionResponse, error)
 	mustEmbedUnimplementedRedemptionServiceServer()
 }
 
@@ -84,6 +99,9 @@ func (UnimplementedRedemptionServiceServer) CreateRedemption(context.Context, *C
 }
 func (UnimplementedRedemptionServiceServer) GetRedemption(context.Context, *GetRedemptionRequest) (*GetRedemptionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRedemption not implemented")
+}
+func (UnimplementedRedemptionServiceServer) VerifyRedemption(context.Context, *VerifyRedemptionRequest) (*VerifyRedemptionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifyRedemption not implemented")
 }
 func (UnimplementedRedemptionServiceServer) mustEmbedUnimplementedRedemptionServiceServer() {}
 func (UnimplementedRedemptionServiceServer) testEmbeddedByValue()                           {}
@@ -142,6 +160,24 @@ func _RedemptionService_GetRedemption_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RedemptionService_VerifyRedemption_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyRedemptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RedemptionServiceServer).VerifyRedemption(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RedemptionService_VerifyRedemption_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RedemptionServiceServer).VerifyRedemption(ctx, req.(*VerifyRedemptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RedemptionService_ServiceDesc is the grpc.ServiceDesc for RedemptionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -156,6 +192,10 @@ var RedemptionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRedemption",
 			Handler:    _RedemptionService_GetRedemption_Handler,
+		},
+		{
+			MethodName: "VerifyRedemption",
+			Handler:    _RedemptionService_VerifyRedemption_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

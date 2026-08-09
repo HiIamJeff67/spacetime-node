@@ -94,3 +94,15 @@ func IsOfferUnavailable(err error) bool {
 func ErrorOfferUnavailable(format string, args ...interface{}) *errors.Error {
 	return errors.New(409, ErrorReason_OFFER_UNAVAILABLE.String(), fmt.Sprintf(format, args...))
 }
+
+func IsMerchantVerificationFailed(err error) bool {
+	if err == nil {
+		return false
+	}
+	e := errors.FromError(err)
+	return e.Reason == ErrorReason_MERCHANT_VERIFICATION_FAILED.String() && e.Code == 409
+}
+
+func ErrorMerchantVerificationFailed(format string, args ...interface{}) *errors.Error {
+	return errors.New(409, ErrorReason_MERCHANT_VERIFICATION_FAILED.String(), fmt.Sprintf(format, args...))
+}

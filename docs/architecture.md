@@ -382,7 +382,7 @@ LLM endpoint 也必須由設定注入。基礎 Compose 預設以 template / mock
 
 - [ ] 任一開發者可依 README 成功啟動環境。
 - [ ] API 文件可從 Swagger UI 瀏覽與操作。
-- [ ] 進站事件可觸發 Kafka 消費與推薦建立。
+- [x] Gateway 將進站 journey 與 `journey.entered.v1` outbox event 以同一筆 PostgreSQL transaction 建立；recommendation-service 透過 Kafka consumer 觸發推薦。
 - [ ] 推薦有可讀理由且不推薦過期、無庫存或點數不足優惠。
 - [ ] Qdrant 僅負責候選召回；最終優惠均已回 PostgreSQL 驗證。
 - [ ] LLM 只能根據已驗證 facts 生成 JSON 文案，失敗時自動使用模板且不影響推薦結果。

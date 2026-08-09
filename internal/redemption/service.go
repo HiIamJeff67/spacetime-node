@@ -13,12 +13,15 @@ import (
 )
 
 var (
-	ErrInvalidRequest         = errors.New("invalid redemption request")
-	ErrUserNotFound           = errors.New("user not found")
-	ErrJourneyNotFound        = errors.New("journey not found")
-	ErrOfferUnavailable       = errors.New("offer unavailable")
-	ErrInsufficientPoints     = errors.New("insufficient points")
-	ErrIdempotencyKeyConflict = errors.New("idempotency key conflict")
+	ErrInvalidRequest          = errors.New("invalid redemption request")
+	ErrUserNotFound            = errors.New("user not found")
+	ErrJourneyNotFound         = errors.New("journey not found")
+	ErrOfferUnavailable        = errors.New("offer unavailable")
+	ErrInsufficientPoints      = errors.New("insufficient points")
+	ErrIdempotencyKeyConflict  = errors.New("idempotency key conflict")
+	ErrRedemptionNotFound      = errors.New("redemption not found")
+	ErrVerificationFailed      = errors.New("merchant verification failed")
+	ErrRedemptionNotVerifiable = errors.New("redemption is not verifiable")
 )
 
 type Service struct {
@@ -31,6 +34,13 @@ type CreateRequest struct {
 	OfferID        string
 	IdempotencyKey string
 	TraceID        string
+}
+
+type VerifyRequest struct {
+	RedemptionID     string
+	MerchantID       string
+	VerificationCode string
+	TraceID          string
 }
 
 type Redemption struct {
@@ -162,6 +172,142 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (Redemption
 	}
 
 	return redemption, nil
+}
+
+func (s *Service) Get(ctx context.Context, redemptionID string) (Redemption, error) {
+	if s == nil || s.db == nil || redemptionID == "" {
+		return Redemption{}, ErrInvalidRequest
+	}
+	var redemption Redemption
+	err := s.db.QueryRowContext(ctx, `
+		SELECT redemption_id, journey_id, offer_id, status, points_cost, merchant_verification_code
+		FROM redemptions
+		WHERE redemption_id = $1`, redemptionID).Scan(
+		&redemption.ID,
+		&redemption.JourneyID,
+		&redemption.OfferID,
+		&redemption.Status,
+		&redemption.PointsCost,
+		&redemption.MerchantVerificationCode,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Redemption{}, ErrRedemptionNotFound
+	}
+	if err != nil {
+		return Redemption{}, err
+	}
+	return redemption, nil
+}
+
+func (s *Service) Verify(ctx context.Context, request VerifyRequest) (Redemption, error) {
+	if s == nil || s.db == nil || request.RedemptionID == "" || request.MerchantID == "" || request.VerificationCode == "" || request.TraceID == "" {
+		return Redemption{}, ErrInvalidRequest
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Redemption{}, err
+	}
+	defer tx.Rollback()
+
+	var redemption Redemption
+	var merchantID, verificationCode, userIDHash string
+	err = tx.QueryRowContext(ctx, `
+		SELECT r.redemption_id, r.journey_id, r.offer_id, r.status, r.points_cost,
+		       r.merchant_verification_code, o.merchant_id, u.user_id_hash
+		FROM redemptions r
+		JOIN offers o ON o.offer_id = r.offer_id
+		JOIN users u ON u.user_id = r.user_id
+		WHERE r.redemption_id = $1
+		FOR UPDATE OF r`, request.RedemptionID).Scan(
+		&redemption.ID,
+		&redemption.JourneyID,
+		&redemption.OfferID,
+		&redemption.Status,
+		&redemption.PointsCost,
+		&verificationCode,
+		&merchantID,
+		&userIDHash,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Redemption{}, ErrRedemptionNotFound
+	}
+	if err != nil {
+		return Redemption{}, err
+	}
+	redemption.MerchantVerificationCode = verificationCode
+	if merchantID != request.MerchantID || verificationCode != request.VerificationCode {
+		return Redemption{}, ErrVerificationFailed
+	}
+	if redemption.Status == "verified" {
+		if err := tx.Commit(); err != nil {
+			return Redemption{}, err
+		}
+		return redemption, nil
+	}
+	if redemption.Status != "succeeded" {
+		return Redemption{}, ErrRedemptionNotVerifiable
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE redemptions
+		SET status = 'verified', updated_at = current_timestamp
+		WHERE redemption_id = $1`, redemption.ID); err != nil {
+		return Redemption{}, err
+	}
+	redemption.Status = "verified"
+	if err := enqueueVerifiedEvent(ctx, tx, request, redemption, userIDHash); err != nil {
+		return Redemption{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Redemption{}, err
+	}
+	return redemption, nil
+}
+
+func enqueueVerifiedEvent(ctx context.Context, tx *sql.Tx, request VerifyRequest, redemption Redemption, userIDHash string) error {
+	verifiedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	eventID := uuid.NewString()
+	message, err := json.Marshal(struct {
+		EventID       string `json:"event_id"`
+		EventType     string `json:"event_type"`
+		SchemaVersion int    `json:"schema_version"`
+		OccurredAt    string `json:"occurred_at"`
+		Producer      string `json:"producer"`
+		TraceID       string `json:"trace_id"`
+		JourneyID     string `json:"journey_id"`
+		UserIDHash    string `json:"user_id_hash"`
+		Payload       struct {
+			RedemptionID string `json:"redemption_id"`
+			MerchantID   string `json:"merchant_id"`
+			VerifiedAt   string `json:"verified_at"`
+		} `json:"payload"`
+	}{
+		EventID:       eventID,
+		EventType:     "merchant.verified.v1",
+		SchemaVersion: 1,
+		OccurredAt:    verifiedAt,
+		Producer:      "redemption-service",
+		TraceID:       request.TraceID,
+		JourneyID:     redemption.JourneyID,
+		UserIDHash:    userIDHash,
+		Payload: struct {
+			RedemptionID string `json:"redemption_id"`
+			MerchantID   string `json:"merchant_id"`
+			VerifiedAt   string `json:"verified_at"`
+		}{
+			RedemptionID: redemption.ID,
+			MerchantID:   request.MerchantID,
+			VerifiedAt:   verifiedAt,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return outbox.Enqueue(ctx, tx, outbox.Event{
+		ID:      eventID,
+		Topic:   "merchant.verified.v1",
+		Key:     redemption.JourneyID,
+		Payload: message,
+	})
 }
 
 func enqueueSucceededEvent(ctx context.Context, tx *sql.Tx, request CreateRequest, redemption Redemption) error {

@@ -75,7 +75,53 @@ func (i *OfferIndexer) Bootstrap(ctx context.Context, dimension int) error {
 			return err
 		}
 	}
-	return nil
+	return i.reindexActiveOffers(ctx)
+}
+
+func (i *OfferIndexer) reindexActiveOffers(ctx context.Context) error {
+	if i == nil || i.db == nil {
+		return nil
+	}
+	if i.embedder == nil {
+		return ErrEmbeddingUnavailable
+	}
+	rows, err := i.db.QueryContext(ctx, `
+		SELECT offer_id, title, description, station_id, content_version
+		FROM offers
+		WHERE is_active = true`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	points := make([]QdrantPoint, 0)
+	for rows.Next() {
+		var document OfferDocument
+		if err := rows.Scan(&document.OfferID, &document.Title, &document.Description, &document.StationID, &document.ContentVersion); err != nil {
+			return err
+		}
+		vector, err := i.embedder(ctx, document)
+		if err != nil {
+			return err
+		}
+		points = append(points, QdrantPoint{
+			ID:     document.OfferID,
+			Vector: vector,
+			Payload: map[string]any{
+				"offer_id":        document.OfferID,
+				"station_ids":     []string{document.StationID},
+				"content_version": document.ContentVersion,
+				"embedding_model": i.embeddingModel,
+			},
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(points) == 0 {
+		return nil
+	}
+	return i.qdrant.Upsert(ctx, i.collection, points)
 }
 
 func (i *OfferIndexer) HandleOfferChanged(ctx context.Context, data []byte) error {

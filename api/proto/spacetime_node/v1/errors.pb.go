@@ -26,14 +26,15 @@ const (
 type ErrorReason int32
 
 const (
-	ErrorReason_ERROR_REASON_UNSPECIFIED ErrorReason = 0
-	ErrorReason_INVALID_REQUEST          ErrorReason = 1
-	ErrorReason_JOURNEY_NOT_FOUND        ErrorReason = 2
-	ErrorReason_RECOMMENDATION_NOT_FOUND ErrorReason = 3
-	ErrorReason_REDEMPTION_NOT_FOUND     ErrorReason = 4
-	ErrorReason_IDEMPOTENCY_KEY_CONFLICT ErrorReason = 5
-	ErrorReason_INSUFFICIENT_POINTS      ErrorReason = 6
-	ErrorReason_OFFER_UNAVAILABLE        ErrorReason = 7
+	ErrorReason_ERROR_REASON_UNSPECIFIED     ErrorReason = 0
+	ErrorReason_INVALID_REQUEST              ErrorReason = 1
+	ErrorReason_JOURNEY_NOT_FOUND            ErrorReason = 2
+	ErrorReason_RECOMMENDATION_NOT_FOUND     ErrorReason = 3
+	ErrorReason_REDEMPTION_NOT_FOUND         ErrorReason = 4
+	ErrorReason_IDEMPOTENCY_KEY_CONFLICT     ErrorReason = 5
+	ErrorReason_INSUFFICIENT_POINTS          ErrorReason = 6
+	ErrorReason_OFFER_UNAVAILABLE            ErrorReason = 7
+	ErrorReason_MERCHANT_VERIFICATION_FAILED ErrorReason = 8
 )
 
 // Enum value maps for ErrorReason.
@@ -47,16 +48,18 @@ var (
 		5: "IDEMPOTENCY_KEY_CONFLICT",
 		6: "INSUFFICIENT_POINTS",
 		7: "OFFER_UNAVAILABLE",
+		8: "MERCHANT_VERIFICATION_FAILED",
 	}
 	ErrorReason_value = map[string]int32{
-		"ERROR_REASON_UNSPECIFIED": 0,
-		"INVALID_REQUEST":          1,
-		"JOURNEY_NOT_FOUND":        2,
-		"RECOMMENDATION_NOT_FOUND": 3,
-		"REDEMPTION_NOT_FOUND":     4,
-		"IDEMPOTENCY_KEY_CONFLICT": 5,
-		"INSUFFICIENT_POINTS":      6,
-		"OFFER_UNAVAILABLE":        7,
+		"ERROR_REASON_UNSPECIFIED":     0,
+		"INVALID_REQUEST":              1,
+		"JOURNEY_NOT_FOUND":            2,
+		"RECOMMENDATION_NOT_FOUND":     3,
+		"REDEMPTION_NOT_FOUND":         4,
+		"IDEMPOTENCY_KEY_CONFLICT":     5,
+		"INSUFFICIENT_POINTS":          6,
+		"OFFER_UNAVAILABLE":            7,
+		"MERCHANT_VERIFICATION_FAILED": 8,
 	}
 )
 
@@ -91,7 +94,7 @@ var File_api_proto_spacetime_node_v1_errors_proto protoreflect.FileDescriptor
 
 const file_api_proto_spacetime_node_v1_errors_proto_rawDesc = "" +
 	"\n" +
-	"(api/proto/spacetime_node/v1/errors.proto\x12\x11spacetime_node.v1\x1a\x13errors/errors.proto*\x87\x02\n" +
+	"(api/proto/spacetime_node/v1/errors.proto\x12\x11spacetime_node.v1\x1a\x13errors/errors.proto*\xaf\x02\n" +
 	"\vErrorReason\x12\x1c\n" +
 	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x0fINVALID_REQUEST\x10\x01\x1a\x04\xa8E\x90\x03\x12\x1b\n" +
@@ -100,7 +103,8 @@ const file_api_proto_spacetime_node_v1_errors_proto_rawDesc = "" +
 	"\x14REDEMPTION_NOT_FOUND\x10\x04\x1a\x04\xa8E\x94\x03\x12\"\n" +
 	"\x18IDEMPOTENCY_KEY_CONFLICT\x10\x05\x1a\x04\xa8E\x99\x03\x12\x1d\n" +
 	"\x13INSUFFICIENT_POINTS\x10\x06\x1a\x04\xa8E\x99\x03\x12\x1b\n" +
-	"\x11OFFER_UNAVAILABLE\x10\a\x1a\x04\xa8E\x99\x03B/Z-spacetime-node/api/proto/spacetime_node/v1;v1b\x06proto3"
+	"\x11OFFER_UNAVAILABLE\x10\a\x1a\x04\xa8E\x99\x03\x12&\n" +
+	"\x1cMERCHANT_VERIFICATION_FAILED\x10\b\x1a\x04\xa8E\x99\x03B/Z-spacetime-node/api/proto/spacetime_node/v1;v1b\x06proto3"
 
 var (
 	file_api_proto_spacetime_node_v1_errors_proto_rawDescOnce sync.Once

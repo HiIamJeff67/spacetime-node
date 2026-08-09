@@ -91,7 +91,7 @@ The synchronous path is deliberately short: Gateway resolves a Beacon through `m
 │   └── runbooks/                  # Demo and failure-recovery procedures
 ├── internal/
 │   ├── analytics/                 # ClickHouse projections and consumers
-│   ├── gateway/                   # HTTP handlers and journey orchestration
+│   ├── journey/                   # Gateway journey handlers and orchestration
 │   ├── mobility/
 │   │   └── provider/metro/        # JSON Beacon + SOAP client adapters only
 │   ├── platform/

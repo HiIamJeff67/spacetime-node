@@ -20,6 +20,14 @@ service RedemptionService {
   rpc GetRedemption(GetRedemptionRequest) returns (GetRedemptionResponse) {
     option (google.api.http) = {get: "/v1/redemptions/{redemption_id}"};
   }
+
+  // VerifyRedemption is a demo merchant verification endpoint.
+  rpc VerifyRedemption(VerifyRedemptionRequest) returns (VerifyRedemptionResponse) {
+    option (google.api.http) = {
+      post: "/v1/redemptions/{redemption_id}/verify"
+      body: "*"
+    };
+  }
 }
 
 message CreateRedemptionRequest {
@@ -40,6 +48,17 @@ message GetRedemptionRequest {
 }
 
 message GetRedemptionResponse {
+  Redemption redemption = 1;
+}
+
+message VerifyRedemptionRequest {
+  RequestContext request_context = 1;
+  string redemption_id = 2;
+  string merchant_id = 3;
+  string verification_code = 4;
+}
+
+message VerifyRedemptionResponse {
   Redemption redemption = 1;
 }
 

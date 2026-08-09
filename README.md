@@ -2,7 +2,7 @@
 
 「時空節點」後端 MVP。系統以捷運進站情境觸發個人化優惠推薦，並可完成兌換、商家核銷與成效分析。
 
-目前已完成 Sprint 0 基線與 Sprint 1 的推薦／索引核心；四個 API 服務與 embedding indexer 可由單一 Docker Compose 啟動。
+目前已完成 Sprint 0 基線與 Sprint 1 的推薦／索引核心、進站事件到推薦的非同步接線；四個 API 服務與 embedding indexer 可由單一 Docker Compose 啟動。
 
 ## Local start
 

@@ -71,6 +71,60 @@ func TestCreateRedemption(t *testing.T) {
 	}
 }
 
+func TestVerifyRedemption(t *testing.T) {
+	db := integrationDB(t)
+	resetDatabase(t, db)
+	service := NewService(db)
+	created, err := service.Create(context.Background(), CreateRequest{
+		UserIDHash:     demoUserIDHash,
+		JourneyID:      "journey-demo-001",
+		OfferID:        "offer-coffee-xinyi",
+		IdempotencyKey: "verify-redemption-key",
+		TraceID:        "trace-redemption-create",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	verified, err := service.Verify(context.Background(), VerifyRequest{
+		RedemptionID:     created.ID,
+		MerchantID:       "merchant-coffee-demo",
+		VerificationCode: created.MerchantVerificationCode,
+		TraceID:          "trace-redemption-verify",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verified.Status != "verified" {
+		t.Fatalf("expected verified status, got %q", verified.Status)
+	}
+
+	replayed, err := service.Verify(context.Background(), VerifyRequest{
+		RedemptionID:     created.ID,
+		MerchantID:       "merchant-coffee-demo",
+		VerificationCode: created.MerchantVerificationCode,
+		TraceID:          "trace-redemption-verify-replay",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed.ID != verified.ID || replayed.Status != "verified" {
+		t.Fatalf("verification replay changed state: %+v", replayed)
+	}
+
+	var status string
+	var eventCount int
+	if err := db.QueryRow(`SELECT status FROM redemptions WHERE redemption_id = $1`, created.ID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM outbox_events WHERE topic = 'merchant.verified.v1'`).Scan(&eventCount); err != nil {
+		t.Fatal(err)
+	}
+	if status != "verified" || eventCount != 1 {
+		t.Fatalf("unexpected verification state: status=%s events=%d", status, eventCount)
+	}
+}
+
 func TestCreateRedemptionRollsBack(t *testing.T) {
 	db := integrationDB(t)
 	resetDatabase(t, db)
