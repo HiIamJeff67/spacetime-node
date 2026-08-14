@@ -17,4 +17,5 @@ enum ErrorReason {
   INSUFFICIENT_POINTS = 6 [(errors.code) = 409];
   OFFER_UNAVAILABLE = 7 [(errors.code) = 409];
   MERCHANT_VERIFICATION_FAILED = 8 [(errors.code) = 409];
+  USER_NOT_FOUND = 9 [(errors.code) = 404];
 }

@@ -2,7 +2,7 @@
 
 「時空節點」後端 MVP。系統以捷運進站情境觸發個人化優惠推薦，並可完成兌換、商家核銷與成效分析。
 
-目前已完成 Sprint 0 基線與 Sprint 1 的推薦／索引核心、進站事件到推薦的非同步接線；四個 API 服務與 embedding indexer 可由單一 Docker Compose 啟動。
+目前已完成 Sprint 0 基線、Sprint 1 的推薦／索引核心與 Sprint 2 的兌換、分析 projection、LGTM telemetry；四個 API 服務、embedding indexer 與 analytics consumer 可由單一 Docker Compose 啟動。
 
 ## Local start
 
@@ -12,7 +12,7 @@
 cp .env.example .env
 ```
 
-接著以單一 Compose 啟動四個 API 服務、embedding indexer worker 與 Kafka（KRaft）、PostgreSQL、Redis、ClickHouse、Qdrant：
+接著以單一 Compose 啟動四個 API 服務、embedding indexer／analytics workers 與 Kafka（KRaft）、PostgreSQL、Redis、ClickHouse、Qdrant：
 
 ```bash
 docker compose --env-file .env -f deploy/compose/compose.yaml up --build
@@ -24,10 +24,36 @@ HTTP 健康檢查：
 
 ```bash
 curl http://localhost:8000/healthz
+curl http://localhost:8000/readyz
+curl http://localhost:8000/version
 curl http://localhost:8001/healthz
 curl http://localhost:8002/healthz
 curl http://localhost:8003/healthz
+# Grafana: http://localhost:3000 (admin / admin by default)
+# LGTM Grafana: http://localhost:3001 (development observability stack)
 ```
+
+`/healthz` 只表示 process 還活著；`/readyz` 會檢查該服務必要的 PostgreSQL／Qdrant 依賴，未就緒時回傳 HTTP 503；`/version` 只回報服務版本，不再充當 readiness probe。
+
+### Browser deployment and CORS
+
+The gateway accepts browser requests only from the exact origins listed in
+`CORS_ALLOWED_ORIGINS` (comma-separated, for example
+`https://demo.example.com`). It handles `OPTIONS` preflight for the public API
+and returns `403` for an unknown origin; leave the value empty for curl-only
+local development. The frontend's `VITE_API_BASE_URL` is public configuration
+and must point to the HTTPS gateway URL; database, Kafka, Redis, Qdrant and
+observability credentials stay server-side.
+
+The gateway exposes the browser-facing entry, user, recommendation, and
+redemption routes on one origin. The dedicated redemption service remains
+available on port `8003` for internal/service-level separation.
+
+For a demo deployment, build the frontend container from
+`../spacetime-node-app` with `VITE_API_BASE_URL` set, terminate TLS at the
+hosting ingress, and configure the same frontend origin in the backend's
+`CORS_ALLOWED_ORIGINS`. Probe `/healthz` for process health and `/readyz` for
+dependency readiness before routing traffic.
 
 服務也可獨立啟動，並提供 `/healthz` 與 `/version`：
 
@@ -42,10 +68,31 @@ go run ./cmd/redemption
 
 所有 service 的環境變數一律由 `internal/platform/config` 載入；它集中管理 runtime ports 及 Kafka、PostgreSQL、Redis、ClickHouse、Qdrant、LLM 的連線設定，避免各服務各自解析環境變數。
 
+要補齊本機 demo 的曝光／點擊漏斗，可在 Compose 啟動後執行：
+
+```bash
+KAFKA_BROKERS=localhost:29092 go run ./cmd/analytics-demo \
+  -journey-id <journey_id> -recommendation-id <recommendation_id>
+```
+
+這個命令只發送可重播的 engagement mock events，不會修改點數、庫存或兌換資料。
+
+完整端對端流程可直接執行：
+
+```bash
+./scripts/demo.sh
+```
+
+腳本會建立進站事件、等待非同步推薦、兌換推薦優惠並呼叫商家核銷 mock；可用 `GATEWAY_URL`、`REDEMPTION_URL`、`STATION_ID`、`MAX_ATTEMPTS` 等環境變數覆寫展示參數。
+
+SCRUM-13 的完整交付 runbook、驗收證據與 failure boundary 請見 [`docs/delivery.md`](docs/delivery.md)。
+
 API contract 改動後執行 `make proto`，重新產生 Go、gRPC、Kratos HTTP 與標準錯誤碼 stub；它使用 `go.mod` 鎖定的 Kratos v3 Proto include。
+
+提交前可執行 `make check`，一次完成 `go mod tidy -diff`、`go test ./...`、`go vet ./...` 與 Compose config validation。
 
 執行 `make openapi` 可由相同 Proto 產生 [`api/openapi/openapi.yaml`](api/openapi/openapi.yaml)。Kafka event contract 位於 [`api/events/v1/`](api/events/v1/)，CopyGenerator 的 facts input / output JSON Schema 位於 [`api/schemas/`](api/schemas/)。
 
 停止並保留資料卷：`docker compose --env-file .env -f deploy/compose/compose.yaml down`。若要連同本機資料刪除，明確加上 `--volumes`。
 
-架構與目錄責任請見 [.github/ARCHITECTURE.md](.github/ARCHITECTURE.md)。
+目前完成度、Beacon 串接計畫、embedding 演進與完整資料流請見 [docs/architecture.md](docs/architecture.md)；目錄與程式碼責任邊界見 [.github/ARCHITECTURE.md](.github/ARCHITECTURE.md)。

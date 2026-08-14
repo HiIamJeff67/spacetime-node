@@ -195,15 +195,16 @@ func (x *GetLatestRecommendationRequest) GetJourneyId() string {
 }
 
 type GetLatestRecommendationResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	RecommendationId  string                 `protobuf:"bytes,1,opt,name=recommendation_id,json=recommendationId,proto3" json:"recommendation_id,omitempty"`
-	JourneyId         string                 `protobuf:"bytes,2,opt,name=journey_id,json=journeyId,proto3" json:"journey_id,omitempty"`
-	OfferId           string                 `protobuf:"bytes,3,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
-	Title             string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
-	Body              string                 `protobuf:"bytes,5,opt,name=body,proto3" json:"body,omitempty"`
-	Reasons           []string               `protobuf:"bytes,6,rep,name=reasons,proto3" json:"reasons,omitempty"`
-	CopySource        string                 `protobuf:"bytes,7,opt,name=copy_source,json=copySource,proto3" json:"copy_source,omitempty"`
-	DecisionLatencyMs int64                  `protobuf:"varint,8,opt,name=decision_latency_ms,json=decisionLatencyMs,proto3" json:"decision_latency_ms,omitempty"`
+	state             protoimpl.MessageState     `protogen:"open.v1"`
+	RecommendationId  string                     `protobuf:"bytes,1,opt,name=recommendation_id,json=recommendationId,proto3" json:"recommendation_id,omitempty"`
+	JourneyId         string                     `protobuf:"bytes,2,opt,name=journey_id,json=journeyId,proto3" json:"journey_id,omitempty"`
+	OfferId           string                     `protobuf:"bytes,3,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
+	Title             string                     `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
+	Body              string                     `protobuf:"bytes,5,opt,name=body,proto3" json:"body,omitempty"`
+	Reasons           []string                   `protobuf:"bytes,6,rep,name=reasons,proto3" json:"reasons,omitempty"`
+	CopySource        string                     `protobuf:"bytes,7,opt,name=copy_source,json=copySource,proto3" json:"copy_source,omitempty"`
+	DecisionLatencyMs int64                      `protobuf:"varint,8,opt,name=decision_latency_ms,json=decisionLatencyMs,proto3" json:"decision_latency_ms,omitempty"`
+	Candidates        []*RecommendationCandidate `protobuf:"bytes,9,rep,name=candidates,proto3" json:"candidates,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -294,6 +295,90 @@ func (x *GetLatestRecommendationResponse) GetDecisionLatencyMs() int64 {
 	return 0
 }
 
+func (x *GetLatestRecommendationResponse) GetCandidates() []*RecommendationCandidate {
+	if x != nil {
+		return x.Candidates
+	}
+	return nil
+}
+
+// RecommendationCandidate exposes the explainable boundary between vector recall and rule validation.
+type RecommendationCandidate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OfferId       string                 `protobuf:"bytes,1,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
+	VectorScore   float64                `protobuf:"fixed64,2,opt,name=vector_score,json=vectorScore,proto3" json:"vector_score,omitempty"`
+	RuleScore     float64                `protobuf:"fixed64,3,opt,name=rule_score,json=ruleScore,proto3" json:"rule_score,omitempty"`
+	Eligible      bool                   `protobuf:"varint,4,opt,name=eligible,proto3" json:"eligible,omitempty"`
+	Reasons       []string               `protobuf:"bytes,5,rep,name=reasons,proto3" json:"reasons,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecommendationCandidate) Reset() {
+	*x = RecommendationCandidate{}
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecommendationCandidate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecommendationCandidate) ProtoMessage() {}
+
+func (x *RecommendationCandidate) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecommendationCandidate.ProtoReflect.Descriptor instead.
+func (*RecommendationCandidate) Descriptor() ([]byte, []int) {
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RecommendationCandidate) GetOfferId() string {
+	if x != nil {
+		return x.OfferId
+	}
+	return ""
+}
+
+func (x *RecommendationCandidate) GetVectorScore() float64 {
+	if x != nil {
+		return x.VectorScore
+	}
+	return 0
+}
+
+func (x *RecommendationCandidate) GetRuleScore() float64 {
+	if x != nil {
+		return x.RuleScore
+	}
+	return 0
+}
+
+func (x *RecommendationCandidate) GetEligible() bool {
+	if x != nil {
+		return x.Eligible
+	}
+	return false
+}
+
+func (x *RecommendationCandidate) GetReasons() []string {
+	if x != nil {
+		return x.Reasons
+	}
+	return nil
+}
+
 var File_api_proto_spacetime_node_v1_journey_proto protoreflect.FileDescriptor
 
 const file_api_proto_spacetime_node_v1_journey_proto_rawDesc = "" +
@@ -314,7 +399,7 @@ const file_api_proto_spacetime_node_v1_journey_proto_rawDesc = "" +
 	"\x1eGetLatestRecommendationRequest\x12J\n" +
 	"\x0frequest_context\x18\x01 \x01(\v2!.spacetime_node.v1.RequestContextR\x0erequestContext\x12\x1d\n" +
 	"\n" +
-	"journey_id\x18\x02 \x01(\tR\tjourneyId\"\x9d\x02\n" +
+	"journey_id\x18\x02 \x01(\tR\tjourneyId\"\xe9\x02\n" +
 	"\x1fGetLatestRecommendationResponse\x12+\n" +
 	"\x11recommendation_id\x18\x01 \x01(\tR\x10recommendationId\x12\x1d\n" +
 	"\n" +
@@ -325,7 +410,17 @@ const file_api_proto_spacetime_node_v1_journey_proto_rawDesc = "" +
 	"\areasons\x18\x06 \x03(\tR\areasons\x12\x1f\n" +
 	"\vcopy_source\x18\a \x01(\tR\n" +
 	"copySource\x12.\n" +
-	"\x13decision_latency_ms\x18\b \x01(\x03R\x11decisionLatencyMs2\xc2\x02\n" +
+	"\x13decision_latency_ms\x18\b \x01(\x03R\x11decisionLatencyMs\x12J\n" +
+	"\n" +
+	"candidates\x18\t \x03(\v2*.spacetime_node.v1.RecommendationCandidateR\n" +
+	"candidates\"\xac\x01\n" +
+	"\x17RecommendationCandidate\x12\x19\n" +
+	"\boffer_id\x18\x01 \x01(\tR\aofferId\x12!\n" +
+	"\fvector_score\x18\x02 \x01(\x01R\vvectorScore\x12\x1d\n" +
+	"\n" +
+	"rule_score\x18\x03 \x01(\x01R\truleScore\x12\x1a\n" +
+	"\beligible\x18\x04 \x01(\bR\beligible\x12\x18\n" +
+	"\areasons\x18\x05 \x03(\tR\areasons2\xc2\x02\n" +
 	"\x0eJourneyService\x12\x88\x01\n" +
 	"\x10CreateEntryEvent\x12*.spacetime_node.v1.CreateEntryEventRequest\x1a+.spacetime_node.v1.CreateEntryEventResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/entry-events\x12\xa4\x01\n" +
 	"\x17GetLatestRecommendation\x121.spacetime_node.v1.GetLatestRecommendationRequest\x1a2.spacetime_node.v1.GetLatestRecommendationResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/recommendations/latestB/Z-spacetime-node/api/proto/spacetime_node/v1;v1b\x06proto3"
@@ -342,26 +437,28 @@ func file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP() []byte {
 	return file_api_proto_spacetime_node_v1_journey_proto_rawDescData
 }
 
-var file_api_proto_spacetime_node_v1_journey_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_api_proto_spacetime_node_v1_journey_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_api_proto_spacetime_node_v1_journey_proto_goTypes = []any{
 	(*CreateEntryEventRequest)(nil),         // 0: spacetime_node.v1.CreateEntryEventRequest
 	(*CreateEntryEventResponse)(nil),        // 1: spacetime_node.v1.CreateEntryEventResponse
 	(*GetLatestRecommendationRequest)(nil),  // 2: spacetime_node.v1.GetLatestRecommendationRequest
 	(*GetLatestRecommendationResponse)(nil), // 3: spacetime_node.v1.GetLatestRecommendationResponse
-	(*RequestContext)(nil),                  // 4: spacetime_node.v1.RequestContext
+	(*RecommendationCandidate)(nil),         // 4: spacetime_node.v1.RecommendationCandidate
+	(*RequestContext)(nil),                  // 5: spacetime_node.v1.RequestContext
 }
 var file_api_proto_spacetime_node_v1_journey_proto_depIdxs = []int32{
-	4, // 0: spacetime_node.v1.CreateEntryEventRequest.request_context:type_name -> spacetime_node.v1.RequestContext
-	4, // 1: spacetime_node.v1.GetLatestRecommendationRequest.request_context:type_name -> spacetime_node.v1.RequestContext
-	0, // 2: spacetime_node.v1.JourneyService.CreateEntryEvent:input_type -> spacetime_node.v1.CreateEntryEventRequest
-	2, // 3: spacetime_node.v1.JourneyService.GetLatestRecommendation:input_type -> spacetime_node.v1.GetLatestRecommendationRequest
-	1, // 4: spacetime_node.v1.JourneyService.CreateEntryEvent:output_type -> spacetime_node.v1.CreateEntryEventResponse
-	3, // 5: spacetime_node.v1.JourneyService.GetLatestRecommendation:output_type -> spacetime_node.v1.GetLatestRecommendationResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	5, // 0: spacetime_node.v1.CreateEntryEventRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	5, // 1: spacetime_node.v1.GetLatestRecommendationRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	4, // 2: spacetime_node.v1.GetLatestRecommendationResponse.candidates:type_name -> spacetime_node.v1.RecommendationCandidate
+	0, // 3: spacetime_node.v1.JourneyService.CreateEntryEvent:input_type -> spacetime_node.v1.CreateEntryEventRequest
+	2, // 4: spacetime_node.v1.JourneyService.GetLatestRecommendation:input_type -> spacetime_node.v1.GetLatestRecommendationRequest
+	1, // 5: spacetime_node.v1.JourneyService.CreateEntryEvent:output_type -> spacetime_node.v1.CreateEntryEventResponse
+	3, // 6: spacetime_node.v1.JourneyService.GetLatestRecommendation:output_type -> spacetime_node.v1.GetLatestRecommendationResponse
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_spacetime_node_v1_journey_proto_init() }
@@ -376,7 +473,7 @@ func file_api_proto_spacetime_node_v1_journey_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_spacetime_node_v1_journey_proto_rawDesc), len(file_api_proto_spacetime_node_v1_journey_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

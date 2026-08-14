@@ -7,15 +7,19 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/segmentio/kafka-go"
 
 	"spacetime-node/internal/platform/config"
+	"spacetime-node/internal/platform/observability"
 	"spacetime-node/internal/recommendation"
 )
 
 const embeddingDimension = 32
+
+var version = "dev"
 
 func main() {
 	dependencies := config.LoadDependencies()
@@ -30,6 +34,15 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	shutdownTelemetry, err := observability.Setup(ctx, "embedding-indexer", version)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdownTelemetry(shutdownCtx)
+	}()
 	indexer := recommendation.NewOfferIndexer(
 		db,
 		recommendation.NewQdrantClient(dependencies.QdrantURL, nil),
@@ -48,6 +61,7 @@ func main() {
 		MaxBytes: 10e6,
 	})
 	defer reader.Close()
+	logger := observability.NewLogger("embedding-indexer")
 	for {
 		message, err := reader.FetchMessage(ctx)
 		if err != nil {
@@ -56,11 +70,18 @@ func main() {
 			}
 			log.Fatal(err)
 		}
-		if err := indexer.HandleOfferChanged(ctx, message.Value); err != nil {
-			log.Fatal(err)
+		eventCtx := observability.ExtractKafka(ctx, message.Headers)
+		eventCtx, span := observability.StartKafkaSpan(eventCtx, "offer.changed.v1", "", true)
+		if err := indexer.HandleOfferChanged(eventCtx, message.Value); err != nil {
+			span.RecordError(err)
+			span.End()
+			logger.Fatal(err)
 		}
-		if err := reader.CommitMessages(ctx, message); err != nil {
-			log.Fatal(err)
+		if err := reader.CommitMessages(eventCtx, message); err != nil {
+			span.RecordError(err)
+			span.End()
+			logger.Fatal(err)
 		}
+		span.End()
 	}
 }

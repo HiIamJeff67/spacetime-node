@@ -32,6 +32,95 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/mobility/beacon/resolve:
+        post:
+            tags:
+                - MobilityService
+            description: ResolveBeacon normalizes a Beacon observation without exposing provider credentials.
+            operationId: MobilityService_ResolveBeacon
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ResolveBeaconRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ResolveBeaconResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/notification-subscriptions:
+        post:
+            tags:
+                - NotificationService
+            operationId: NotificationService_RegisterNotificationSubscription
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RegisterNotificationSubscriptionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RegisterNotificationSubscriptionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/notification-subscriptions/{subscription_id}:
+        delete:
+            tags:
+                - NotificationService
+            operationId: NotificationService_RevokeNotificationSubscription
+            parameters:
+                - name: subscription_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: request_context.request_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.trace_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.journey_id
+                  in: query
+                  schema:
+                    type: string
+                - name: user_id_hash
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeNotificationSubscriptionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/recommendations/latest:
         get:
             tags:
@@ -161,8 +250,87 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/users/me:
+        get:
+            tags:
+                - UserService
+            description: GetUserProfile returns the demo user's profile and persisted preferences.
+            operationId: UserService_GetUserProfile
+            parameters:
+                - name: request_context.request_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.trace_id
+                  in: query
+                  schema:
+                    type: string
+                - name: request_context.journey_id
+                  in: query
+                  schema:
+                    type: string
+                - name: user_id_hash
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetUserProfileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users/me/preferences:
+        patch:
+            tags:
+                - UserService
+            description: UpdateUserPreferences replaces the persisted preference document.
+            operationId: UserService_UpdateUserPreferences
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateUserPreferencesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateUserPreferencesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
     schemas:
+        BeaconContext:
+            type: object
+            properties:
+                station_id:
+                    type: string
+                line_id:
+                    type: string
+                position_id:
+                    type: string
+                station_name:
+                    type: string
+                source:
+                    type: string
+                confidence:
+                    type: number
+                    format: double
+                near_exit:
+                    type: boolean
         CreateEntryEventRequest:
             type: object
             properties:
@@ -219,11 +387,20 @@ components:
                     type: string
                 decision_latency_ms:
                     type: string
+                candidates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RecommendationCandidate'
         GetRedemptionResponse:
             type: object
             properties:
                 redemption:
                     $ref: '#/components/schemas/Redemption'
+        GetUserProfileResponse:
+            type: object
+            properties:
+                profile:
+                    $ref: '#/components/schemas/UserProfile'
         GoogleProtobufAny:
             type: object
             properties:
@@ -232,6 +409,24 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        RecommendationCandidate:
+            type: object
+            properties:
+                offer_id:
+                    type: string
+                vector_score:
+                    type: number
+                    format: double
+                rule_score:
+                    type: number
+                    format: double
+                eligible:
+                    type: boolean
+                reasons:
+                    type: array
+                    items:
+                        type: string
+            description: RecommendationCandidate exposes the explainable boundary between vector recall and rule validation.
         Redemption:
             type: object
             properties:
@@ -254,6 +449,30 @@ components:
                     type: string
                 merchant_verification_code:
                     type: string
+        RegisterNotificationSubscriptionRequest:
+            type: object
+            properties:
+                request_context:
+                    $ref: '#/components/schemas/RequestContext'
+                user_id_hash:
+                    type: string
+                endpoint:
+                    type: string
+                p256dh:
+                    type: string
+                auth:
+                    type: string
+                user_agent:
+                    type: string
+        RegisterNotificationSubscriptionResponse:
+            type: object
+            properties:
+                subscription_id:
+                    type: string
+                active:
+                    type: boolean
+                channel:
+                    type: string
         RequestContext:
             type: object
             properties:
@@ -266,6 +485,32 @@ components:
             description: |-
                 RequestContext is carried by future internal RPC requests. It contains only
                  correlation identifiers and must never include a raw user identifier.
+        ResolveBeaconRequest:
+            type: object
+            properties:
+                request_context:
+                    $ref: '#/components/schemas/RequestContext'
+                uuid:
+                    type: string
+                major:
+                    type: string
+                minor:
+                    type: string
+                power:
+                    type: integer
+                    format: int32
+        ResolveBeaconResponse:
+            type: object
+            properties:
+                context:
+                    $ref: '#/components/schemas/BeaconContext'
+        RevokeNotificationSubscriptionResponse:
+            type: object
+            properties:
+                subscription_id:
+                    type: string
+                active:
+                    type: boolean
         Status:
             type: object
             properties:
@@ -282,6 +527,71 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        UpdateUserPreferencesRequest:
+            type: object
+            properties:
+                request_context:
+                    $ref: '#/components/schemas/RequestContext'
+                user_id_hash:
+                    type: string
+                favorite_station_ids:
+                    type: array
+                    items:
+                        type: string
+                preferred_categories:
+                    type: array
+                    items:
+                        type: string
+                budget_min_points:
+                    type: string
+                budget_max_points:
+                    type: string
+                timezone:
+                    type: string
+                notifications_enabled:
+                    type: boolean
+                notification_start_local:
+                    type: string
+                notification_end_local:
+                    type: string
+        UpdateUserPreferencesResponse:
+            type: object
+            properties:
+                profile:
+                    $ref: '#/components/schemas/UserProfile'
+        UserProfile:
+            type: object
+            properties:
+                user_id:
+                    type: string
+                user_id_hash:
+                    type: string
+                display_name:
+                    type: string
+                created_at:
+                    type: string
+                updated_at:
+                    type: string
+                favorite_station_ids:
+                    type: array
+                    items:
+                        type: string
+                preferred_categories:
+                    type: array
+                    items:
+                        type: string
+                budget_min_points:
+                    type: string
+                budget_max_points:
+                    type: string
+                timezone:
+                    type: string
+                notifications_enabled:
+                    type: boolean
+                notification_start_local:
+                    type: string
+                notification_end_local:
+                    type: string
         VerifyRedemptionRequest:
             type: object
             properties:
@@ -300,4 +610,7 @@ components:
                     $ref: '#/components/schemas/Redemption'
 tags:
     - name: JourneyService
+    - name: MobilityService
+    - name: NotificationService
     - name: RedemptionService
+    - name: UserService

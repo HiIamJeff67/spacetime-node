@@ -7,15 +7,44 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   module-hygiene:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v7
         with:
           go-version: '1.25.x'
           cache: false
-      - run: go mod tidy -diff
-      - run: go test ./...
-      - run: go vet ./...
+      - run: make check
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: spacetime
+          POSTGRES_PASSWORD: spacetime
+          POSTGRES_DB: spacetime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U spacetime -d spacetime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_POSTGRES_DSN: postgres://spacetime:spacetime@localhost:5432/spacetime?sslmode=disable
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.x'
+      - run: go test -count=1 -p 1 ./internal/platform/outbox ./internal/recommendation ./internal/redemption ./internal/user

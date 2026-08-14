@@ -130,15 +130,16 @@ func (s *Service) GetLatestRecommendation(ctx context.Context, request *v1.GetLa
 	}
 	var response v1.GetLatestRecommendationResponse
 	var reasonsJSON []byte
+	var candidatesJSON []byte
 	var title, body, source sql.NullString
 	err := s.db.QueryRowContext(ctx, `
-		SELECT recommendation_id, journey_id, offer_id, copy_title, copy_body, reasons, copy_source, decision_latency_ms
+		SELECT recommendation_id, journey_id, offer_id, copy_title, copy_body, reasons, copy_source, candidate_summary, decision_latency_ms
 		FROM recommendations
 		WHERE journey_id = $1
 		ORDER BY created_at DESC
 		LIMIT 1`, request.GetJourneyId()).Scan(
 		&response.RecommendationId, &response.JourneyId, &response.OfferId,
-		&title, &body, &reasonsJSON, &source, &response.DecisionLatencyMs)
+		&title, &body, &reasonsJSON, &source, &candidatesJSON, &response.DecisionLatencyMs)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, v1.ErrorRecommendationNotFound("recommendation is not ready")
 	}
@@ -147,6 +148,23 @@ func (s *Service) GetLatestRecommendation(ctx context.Context, request *v1.GetLa
 	}
 	if err := json.Unmarshal(reasonsJSON, &response.Reasons); err != nil {
 		return nil, err
+	}
+	var candidates []struct {
+		OfferID     string   `json:"offer_id"`
+		VectorScore float64  `json:"vector_score"`
+		RuleScore   float64  `json:"rule_score"`
+		Eligible    bool     `json:"eligible"`
+		Reasons     []string `json:"reasons"`
+	}
+	if err := json.Unmarshal(candidatesJSON, &candidates); err != nil {
+		return nil, err
+	}
+	response.Candidates = make([]*v1.RecommendationCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		response.Candidates = append(response.Candidates, &v1.RecommendationCandidate{
+			OfferId: candidate.OfferID, VectorScore: candidate.VectorScore, RuleScore: candidate.RuleScore,
+			Eligible: candidate.Eligible, Reasons: candidate.Reasons,
+		})
 	}
 	response.Title = title.String
 	response.Body = body.String

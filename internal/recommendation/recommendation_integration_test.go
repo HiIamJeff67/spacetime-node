@@ -14,7 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func TestRecommendPersistsValidatedOfferAndEvent(t *testing.T) {
+func TestRecommendPersistsValidatedOfferAndFallsBackFromInvalidCopy(t *testing.T) {
 	db := integrationDB(t)
 	resetDatabase(t, db)
 	qdrant := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -23,7 +23,11 @@ func TestRecommendPersistsValidatedOfferAndEvent(t *testing.T) {
 	}))
 	defer qdrant.Close()
 
-	service := NewRecommendationService(db, NewQdrantClient(qdrant.URL, qdrant.Client()), NewPreferenceStore(nil, time.Minute))
+	copyGeneratorCalled := false
+	service := NewRecommendationService(db, NewQdrantClient(qdrant.URL, qdrant.Client()), NewPreferenceStore(nil, time.Minute)).WithCopyGenerator(func(context.Context, CopyFacts) (CopyOutput, error) {
+		copyGeneratorCalled = true
+		return CopyOutput{Title: "完全不同的優惠", Body: "只要 999 點。", Tone: "friendly"}, nil
+	}, time.Second)
 	recommendation, err := service.Recommend(context.Background(), RecommendationRequest{
 		UserIDHash: DemoUserIDHash,
 		JourneyID:  "journey-demo-001",
@@ -37,6 +41,9 @@ func TestRecommendPersistsValidatedOfferAndEvent(t *testing.T) {
 	}
 	if recommendation.OfferID != "offer-coffee-xinyi" || recommendation.CopySource != "template" || len(recommendation.Candidates) != 2 {
 		t.Fatalf("unexpected recommendation: %+v", recommendation)
+	}
+	if !copyGeneratorCalled {
+		t.Fatal("copy generator was not called")
 	}
 	var staleFound bool
 	for _, candidate := range recommendation.Candidates {
@@ -113,6 +120,7 @@ func resetDatabase(t *testing.T, db *sql.DB) {
 		"000003_recommendation_copy_source.sql",
 		"000004_recommendation_candidate_summary.sql",
 		"000005_recommendation_latency.sql",
+		"000006_user_preferences.sql",
 	} {
 		contents, err := os.ReadFile(filepath.Join("..", "..", "migrations", "postgres", name))
 		if err != nil {

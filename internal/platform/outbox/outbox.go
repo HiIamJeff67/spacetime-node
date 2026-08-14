@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"spacetime-node/internal/platform/observability"
 )
 
 var ErrInvalidInput = errors.New("invalid outbox input")
@@ -45,7 +46,7 @@ func NewPublisher(db *sql.DB, writer Writer) *Publisher {
 }
 
 func NewKafkaPublisher(db *sql.DB, brokers []string) *Publisher {
-	return NewPublisher(db, &kafka.Writer{Addr: kafka.TCP(brokers...)})
+	return NewPublisher(db, &kafka.Writer{Addr: kafka.TCP(brokers...), BatchTimeout: 10 * time.Millisecond})
 }
 
 func RunPublisher(ctx context.Context, publisher *Publisher, limit int, interval time.Duration, logger *log.Logger) {
@@ -109,11 +110,17 @@ func (p *Publisher) PublishPending(ctx context.Context, limit int) (int, error) 
 
 	published := 0
 	for _, event := range events {
-		err := p.writer.WriteMessages(ctx, kafka.Message{
-			Topic: event.Topic,
-			Key:   []byte(event.Key),
-			Value: event.Payload,
+		eventCtx, span := observability.StartKafkaSpan(ctx, event.Topic, event.ID, false)
+		err := p.writer.WriteMessages(eventCtx, kafka.Message{
+			Topic:   event.Topic,
+			Key:     []byte(event.Key),
+			Value:   event.Payload,
+			Headers: observability.InjectKafka(eventCtx),
 		})
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.End()
 		if err != nil {
 			if _, updateErr := tx.ExecContext(ctx, `
 				UPDATE outbox_events

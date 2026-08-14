@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/google/uuid"
 )
 
 var ErrQdrantWrite = errors.New("qdrant write failed")
@@ -23,6 +25,13 @@ type QdrantPoint struct {
 	ID      string         `json:"id"`
 	Vector  []float32      `json:"vector"`
 	Payload map[string]any `json:"payload"`
+}
+
+func qdrantPointID(id string) string {
+	if parsed, err := uuid.Parse(id); err == nil {
+		return parsed.String()
+	}
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(id)).String()
 }
 
 func (c *QdrantClient) EnsureCollection(ctx context.Context, collection string, dimension int) error {
@@ -63,18 +72,23 @@ func (c *QdrantClient) Upsert(ctx context.Context, collection string, points []Q
 			return ErrQdrantWrite
 		}
 	}
-	return c.doJSON(ctx, http.MethodPut, fmt.Sprintf("/collections/%s/points?wait=true", url.PathEscape(collection)), map[string]any{
-		"points": points,
-	})
+	wirePoints := make([]QdrantPoint, len(points))
+	copy(wirePoints, points)
+	for index := range wirePoints {
+		wirePoints[index].ID = qdrantPointID(wirePoints[index].ID)
+	}
+	return c.doJSON(ctx, http.MethodPut, fmt.Sprintf("/collections/%s/points?wait=true", url.PathEscape(collection)), map[string]any{"points": wirePoints})
 }
 
 func (c *QdrantClient) Delete(ctx context.Context, collection string, offerIDs []string) error {
 	if c == nil || collection == "" || len(offerIDs) == 0 {
 		return ErrQdrantWrite
 	}
-	return c.doJSON(ctx, http.MethodPost, fmt.Sprintf("/collections/%s/points/delete?wait=true", url.PathEscape(collection)), map[string]any{
-		"points": offerIDs,
-	})
+	pointIDs := make([]string, len(offerIDs))
+	for index, offerID := range offerIDs {
+		pointIDs[index] = qdrantPointID(offerID)
+	}
+	return c.doJSON(ctx, http.MethodPost, fmt.Sprintf("/collections/%s/points/delete?wait=true", url.PathEscape(collection)), map[string]any{"points": pointIDs})
 }
 
 func (c *QdrantClient) doJSON(ctx context.Context, method, path string, value any) error {

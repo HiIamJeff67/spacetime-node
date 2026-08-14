@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package spacetime_node.v1;
+
+option go_package = "spacetime-node/api/proto/spacetime_node/v1;v1";
+
+import "api/proto/spacetime_node/v1/common.proto";
+import "google/api/annotations.proto";
+
+service NotificationService {
+  rpc RegisterNotificationSubscription(RegisterNotificationSubscriptionRequest) returns (RegisterNotificationSubscriptionResponse) {
+    option (google.api.http) = {
+      post: "/v1/notification-subscriptions"
+      body: "*"
+    };
+  }
+
+  rpc RevokeNotificationSubscription(RevokeNotificationSubscriptionRequest) returns (RevokeNotificationSubscriptionResponse) {
+    option (google.api.http) = {
+      delete: "/v1/notification-subscriptions/{subscription_id}"
+    };
+  }
+}
+
+message RegisterNotificationSubscriptionRequest {
+  RequestContext request_context = 1;
+  string user_id_hash = 2;
+  string endpoint = 3;
+  string p256dh = 4;
+  string auth = 5;
+  string user_agent = 6;
+}
+
+message RegisterNotificationSubscriptionResponse {
+  string subscription_id = 1;
+  bool active = 2;
+  string channel = 3;
+}
+
+message RevokeNotificationSubscriptionRequest {
+  RequestContext request_context = 1;
+  string user_id_hash = 2;
+  string subscription_id = 3;
+}
+
+message RevokeNotificationSubscriptionResponse {
+  string subscription_id = 1;
+  bool active = 2;
+}

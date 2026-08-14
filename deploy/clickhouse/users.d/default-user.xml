@@ -1,0 +1,11 @@
+<clickhouse>
+  <users>
+    <default>
+      <!-- Local Compose services share the isolated network; no password is exposed. -->
+      <networks>
+        <ip>0.0.0.0/0</ip>
+        <ip>::/0</ip>
+      </networks>
+    </default>
+  </users>
+</clickhouse>

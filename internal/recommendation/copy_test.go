@@ -43,6 +43,20 @@ func TestTemplateCopyAndFallback(t *testing.T) {
 	}
 }
 
+func TestCopyGeneratorErrorFallsBack(t *testing.T) {
+	facts := demoCopyFacts()
+	template, err := TemplateCopy(facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, source, err := GenerateCopy(context.Background(), facts, func(context.Context, CopyFacts) (CopyOutput, error) {
+		return CopyOutput{}, ErrCopyGeneration
+	}, time.Second)
+	if err != nil || source != "template" || output != template {
+		t.Fatalf("generator error did not fallback: %+v source=%s err=%v", output, source, err)
+	}
+}
+
 func TestHTTPCopyGenerator(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/v1/chat/completions" {
@@ -65,6 +79,24 @@ func TestHTTPCopyGenerator(t *testing.T) {
 	}
 	if err := ValidateCopyOutput(demoCopyFacts(), output); err != nil {
 		t.Fatalf("HTTP output failed facts validation: %v", err)
+	}
+}
+
+func TestHTTPCopyGeneratorSchemaMismatchFallsBack(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"{\"title\":\"通勤咖啡折抵 50 元\",\"body\":\"信義安和站附近咖啡折抵優惠。使用 80 點\",\"tone\":\"friendly\",\"cta\":\"立即購買\"}"}}]}`))
+	}))
+	defer server.Close()
+
+	facts := demoCopyFacts()
+	template, err := TemplateCopy(facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, source, err := GenerateCopy(context.Background(), facts, NewHTTPCopyGenerator(server.URL, "demo-model", server.Client()), time.Second)
+	if err != nil || source != "template" || output != template {
+		t.Fatalf("schema mismatch did not fallback: %+v source=%s err=%v", output, source, err)
 	}
 }
 

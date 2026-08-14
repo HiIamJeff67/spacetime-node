@@ -36,3 +36,17 @@ func TestQdrantSearchReturnsOfferIDsFromPayload(t *testing.T) {
 		t.Fatalf("unexpected candidates: %+v", candidates)
 	}
 }
+
+func TestQdrantPing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/readyz" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	if err := NewQdrantClient(server.URL, server.Client()).Ping(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -11,6 +11,7 @@
     { "$ref": "#/$defs/recommendationClicked" },
     { "$ref": "#/$defs/redemptionSucceeded" },
     { "$ref": "#/$defs/merchantVerified" },
+    { "$ref": "#/$defs/visitAttributed" },
     { "$ref": "#/$defs/offerChanged" },
     { "$ref": "#/$defs/deadLetter" }
   ],
@@ -195,6 +196,27 @@
                 "redemption_id": { "type": "string", "minLength": 1 },
                 "merchant_id": { "type": "string", "minLength": 1 },
                 "verified_at": { "type": "string", "format": "date-time" }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "visitAttributed": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "required": ["event_type", "journey_id", "user_id_hash"],
+          "properties": {
+            "event_type": { "const": "visit.attributed.v1" },
+            "payload": {
+              "type": "object",
+              "required": ["attribution_type", "confidence"],
+              "properties": {
+                "attribution_type": { "const": "inferred_visit" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
               },
               "additionalProperties": true
             }

@@ -1,7 +1,21 @@
 KRATOS_THIRD_PARTY := $(shell go list -f '{{.Dir}}' -m github.com/go-kratos/kratos/v3)/third_party
-PROTO_FILES := api/proto/spacetime_node/v1/common.proto api/proto/spacetime_node/v1/errors.proto api/proto/spacetime_node/v1/journey.proto api/proto/spacetime_node/v1/redemption.proto
+PROTO_FILES := api/proto/spacetime_node/v1/common.proto api/proto/spacetime_node/v1/errors.proto api/proto/spacetime_node/v1/journey.proto api/proto/spacetime_node/v1/redemption.proto api/proto/spacetime_node/v1/user.proto api/proto/spacetime_node/v1/notification.proto api/proto/spacetime_node/v1/mobility.proto
 
-.PHONY: openapi proto
+.PHONY: check compose-config module-check openapi proto test vet
+
+check: module-check test vet compose-config
+
+module-check:
+	go mod tidy -diff
+
+test:
+	go test ./...
+
+vet:
+	go vet ./...
+
+compose-config:
+	docker compose --env-file .env.example -f deploy/compose/compose.yaml config --quiet
 
 proto:
 	PATH="$(shell go env GOPATH)/bin:$(PATH)" protoc -I . -I $(KRATOS_THIRD_PARTY) \

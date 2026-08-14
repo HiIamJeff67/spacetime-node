@@ -48,4 +48,14 @@ message GetLatestRecommendationResponse {
   repeated string reasons = 6;
   string copy_source = 7;
   int64 decision_latency_ms = 8;
+  repeated RecommendationCandidate candidates = 9;
+}
+
+// RecommendationCandidate exposes the explainable boundary between vector recall and rule validation.
+message RecommendationCandidate {
+  string offer_id = 1;
+  double vector_score = 2;
+  double rule_score = 3;
+  bool eligible = 4;
+  repeated string reasons = 5;
 }

@@ -13,6 +13,10 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"spacetime-node/internal/platform/observability"
 )
 
 const DefaultCopyTimeout = 250 * time.Millisecond
@@ -65,6 +69,7 @@ func GenerateCopy(ctx context.Context, facts CopyFacts, generator CopyGenerator,
 		return CopyOutput{}, "", err
 	}
 	if generator == nil {
+		observability.AddCounter(ctx, "copy_generation_total", 1, attribute.String("copy.source", "template"), attribute.String("copy.outcome", "template"))
 		return template, "template", nil
 	}
 	if timeout <= 0 {
@@ -77,8 +82,16 @@ func GenerateCopy(ctx context.Context, facts CopyFacts, generator CopyGenerator,
 		err = ValidateCopyOutput(facts, output)
 	}
 	if err != nil {
+		outcome := "llm_error"
+		if copyCtx.Err() == context.DeadlineExceeded {
+			outcome = "timeout"
+		} else if errors.Is(err, ErrInvalidCopyOutput) {
+			outcome = "validation_failure"
+		}
+		observability.AddCounter(ctx, "copy_generation_total", 1, attribute.String("copy.source", "template"), attribute.String("copy.outcome", outcome))
 		return template, "template", nil
 	}
+	observability.AddCounter(ctx, "copy_generation_total", 1, attribute.String("copy.source", "llm"), attribute.String("copy.outcome", "success"))
 	return output, "llm", nil
 }
 

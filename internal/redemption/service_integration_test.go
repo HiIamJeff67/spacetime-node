@@ -37,6 +37,11 @@ func TestCreateRedemption(t *testing.T) {
 	if created.ID != replayed.ID {
 		t.Fatalf("replay created a different redemption: %s != %s", created.ID, replayed.ID)
 	}
+	conflictingRequest := request
+	conflictingRequest.OfferID = "offer-lunch-xinyi"
+	if _, err := service.Create(context.Background(), conflictingRequest); !errors.Is(err, ErrIdempotencyKeyConflict) {
+		t.Fatalf("expected ErrIdempotencyKeyConflict, got %v", err)
+	}
 
 	var balance int64
 	var quantity int

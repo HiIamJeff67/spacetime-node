@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package spacetime_node.v1;
+
+option go_package = "spacetime-node/api/proto/spacetime_node/v1;v1";
+
+import "api/proto/spacetime_node/v1/common.proto";
+import "google/api/annotations.proto";
+
+service UserService {
+  // GetUserProfile returns the demo user's profile and persisted preferences.
+  rpc GetUserProfile(GetUserProfileRequest) returns (GetUserProfileResponse) {
+    option (google.api.http) = {get: "/v1/users/me"};
+  }
+
+  // UpdateUserPreferences replaces the persisted preference document.
+  rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UpdateUserPreferencesResponse) {
+    option (google.api.http) = {
+      patch: "/v1/users/me/preferences"
+      body: "*"
+    };
+  }
+}
+
+message GetUserProfileRequest {
+  RequestContext request_context = 1;
+  string user_id_hash = 2;
+}
+
+message UpdateUserPreferencesRequest {
+  RequestContext request_context = 1;
+  string user_id_hash = 2;
+  repeated string favorite_station_ids = 3;
+  repeated string preferred_categories = 4;
+  int64 budget_min_points = 5;
+  int64 budget_max_points = 6;
+  string timezone = 7;
+  bool notifications_enabled = 8;
+  string notification_start_local = 9;
+  string notification_end_local = 10;
+}
+
+message UpdateUserPreferencesResponse {
+  UserProfile profile = 1;
+}
+
+message GetUserProfileResponse {
+  UserProfile profile = 1;
+}
+
+message UserProfile {
+  string user_id = 1;
+  string user_id_hash = 2;
+  string display_name = 3;
+  string created_at = 4;
+  string updated_at = 5;
+  repeated string favorite_station_ids = 6;
+  repeated string preferred_categories = 7;
+  int64 budget_min_points = 8;
+  int64 budget_max_points = 9;
+  string timezone = 10;
+  bool notifications_enabled = 11;
+  string notification_start_local = 12;
+  string notification_end_local = 13;
+}

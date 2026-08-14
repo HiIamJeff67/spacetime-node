@@ -1,0 +1,19 @@
+{
+  "base_url": "http://127.0.0.1:8000",
+  "requests": 10,
+  "concurrency": 2,
+  "successes": 10,
+  "failures": 0,
+  "elapsed_seconds": 0.813,
+  "throughput_per_second": 12.3,
+  "target_p95_ms": 2000,
+  "e2e_ms": {"p50": 116.35, "p95": 334.8, "max": 334.8},
+  "decision_latency_ms": {"p50": 2, "p95": 58},
+  "qdrant_latency_ms": {"samples": 10, "p50_ms": 2.84, "p95_ms": 11.69},
+  "fallback_rate": 1.0,
+  "kafka_lag": {
+    "consumer_group": "recommendation-service-v1",
+    "journey.entered.v1": {"partition_0": 0, "partition_1": 0, "partition_2": 0}
+  },
+  "notes": "Warm local Compose stack; template copy mode is expected, so fallback_rate=1.0 is baseline rather than an error."
+}

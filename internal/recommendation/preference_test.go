@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -50,5 +51,18 @@ func TestPreferenceCacheHitAndExpiry(t *testing.T) {
 	expired, err := store.Get(context.Background(), DemoUserIDHash)
 	if err != nil || expired.Source != "fallback" {
 		t.Fatalf("expired cache did not fall back: source=%s err=%v", expired.Source, err)
+	}
+}
+
+func TestPreferenceLoadsPersistedUserSettings(t *testing.T) {
+	db := integrationDB(t)
+	resetDatabase(t, db)
+	store := NewPreferenceStore(nil, time.Minute).WithDB(db)
+	preference, err := store.Get(context.Background(), DemoUserIDHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preference.Source != "postgres" || preference.PredictedDestination != "R04" || preference.BudgetMaxPoints != 300 {
+		t.Fatalf("unexpected persisted preference: %+v", preference)
 	}
 }

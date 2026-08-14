@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package spacetime_node.v1;
+
+option go_package = "spacetime-node/api/proto/spacetime_node/v1;v1";
+
+import "api/proto/spacetime_node/v1/common.proto";
+import "google/api/annotations.proto";
+
+service MobilityService {
+  // ResolveBeacon normalizes a Beacon observation without exposing provider credentials.
+  rpc ResolveBeacon(ResolveBeaconRequest) returns (ResolveBeaconResponse) {
+    option (google.api.http) = {
+      post: "/v1/mobility/beacon/resolve"
+      body: "*"
+    };
+  }
+}
+
+message ResolveBeaconRequest {
+  RequestContext request_context = 1;
+  string uuid = 2;
+  int64 major = 3;
+  int64 minor = 4;
+  int32 power = 5;
+}
+
+message ResolveBeaconResponse {
+  BeaconContext context = 1;
+}
+
+message BeaconContext {
+  string station_id = 1;
+  string line_id = 2;
+  string position_id = 3;
+  string station_name = 4;
+  string source = 5;
+  double confidence = 6;
+  bool near_exit = 7;
+}

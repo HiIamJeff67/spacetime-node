@@ -12,10 +12,11 @@
 | `recommendation.clicked.v1` | demo client | analytics-consumer | `user_id_hash` |
 | `redemption.succeeded.v1` | redemption-service outbox | analytics-consumer | `user_id_hash` |
 | `merchant.verified.v1` | merchant verification mock | analytics-consumer | `journey_id` |
+| `visit.attributed.v1` | attribution worker / demo | analytics-consumer | `journey_id` |
 | `offer.changed.v1` | offer administration / seed importer | embedding indexer | `offer_id` |
 | `dlq.v1` | failed consumer | operator replay tool | original record key |
 
-All records include `event_id`, `event_type`, `schema_version`, `occurred_at`, `producer`, and `trace_id`. `causation_id`, `journey_id`, `recommendation_id`, and `user_id_hash` are included when the event has that context; raw user identifiers are forbidden. Notification and engagement events must include `journey_id`, `recommendation_id`, and `user_id_hash`, which lets analytics attribute exposure, click, redemption, and merchant verification to the same recommendation.
+All records include `event_id`, `event_type`, `schema_version`, `occurred_at`, `producer`, and `trace_id`. `causation_id`, `journey_id`, `recommendation_id`, and `user_id_hash` are included when the event has that context; raw user identifiers are forbidden. Notification and engagement events must include `journey_id`, `recommendation_id`, and `user_id_hash`, which lets analytics attribute exposure, click, redemption, and merchant verification to the same recommendation. `visit.attributed.v1` is an inferred signal and must never be counted as an observed POS verification.
 
 Compatibility rules: add only optional fields in v1, never reuse or change a field's meaning or type, and let consumers ignore unknown payload fields. Any breaking change requires a new topic suffix such as `.v2`; its producer and consumer run alongside v1 until replay and migration are complete.
 

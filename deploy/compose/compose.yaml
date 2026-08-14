@@ -4,20 +4,8 @@ x-app-common: &app-common
   build:
     context: ../..
     dockerfile: Dockerfile
-  env_file:
-    - ../../.env
   restart: unless-stopped
-  depends_on:
-    postgres:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
-    kafka:
-      condition: service_started
-    clickhouse:
-      condition: service_started
-    qdrant:
-      condition: service_started
+  stop_grace_period: 15s
 x-dependency-env: &dependency-env
   KAFKA_BROKERS: kafka:9092
   POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
@@ -27,6 +15,7 @@ x-dependency-env: &dependency-env
   LLM_MODE: ${LLM_MODE:-template}
   LLM_BASE_URL: ${LLM_BASE_URL:-}
   LLM_MODEL: ${LLM_MODEL:-}
+  OTEL_EXPORTER_OTLP_ENDPOINT: otel-lgtm:4317
 
 services:
   gateway:
@@ -41,6 +30,16 @@ services:
       SERVICE_NAME: gateway-service
       HTTP_ADDR: :8000
       GRPC_ADDR: :9000
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      otel-lgtm:
+        condition: service_started
     ports:
       - "127.0.0.1:8000:8000"
       - "127.0.0.1:9000:9000"
@@ -57,6 +56,13 @@ services:
       SERVICE_NAME: mobility-service
       HTTP_ADDR: :8001
       GRPC_ADDR: :9001
+      BEACON_API_URL: ${BEACON_API_URL:-}
+      BEACON_API_USERNAME: ${BEACON_API_USERNAME:-}
+      BEACON_API_PASSWORD: ${BEACON_API_PASSWORD:-}
+      BEACON_API_TIMEOUT_MS: ${BEACON_API_TIMEOUT_MS:-800}
+    depends_on:
+      otel-lgtm:
+        condition: service_started
     ports:
       - "127.0.0.1:8001:8001"
       - "127.0.0.1:9001:9001"
@@ -73,9 +79,19 @@ services:
       SERVICE_NAME: recommendation-service
       HTTP_ADDR: :8002
       GRPC_ADDR: :9002
-    ports:
-      - "127.0.0.1:8002:8002"
-      - "127.0.0.1:9002:9002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_healthy
+      otel-lgtm:
+        condition: service_started
 
   embedding-indexer:
     <<: *app-common
@@ -87,6 +103,57 @@ services:
     environment:
       <<: *dependency-env
       SERVICE_NAME: embedding-indexer
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_healthy
+      otel-lgtm:
+        condition: service_started
+
+  notification:
+    <<: *app-common
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notification
+    environment:
+      <<: *dependency-env
+      SERVICE_NAME: notification-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      otel-lgtm:
+        condition: service_started
+
+  analytics:
+    <<: *app-common
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        SERVICE: analytics
+    environment:
+      <<: *dependency-env
+      SERVICE_NAME: analytics-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+      otel-lgtm:
+        condition: service_started
 
   redemption:
     <<: *app-common
@@ -100,6 +167,15 @@ services:
       SERVICE_NAME: redemption-service
       HTTP_ADDR: :8003
       GRPC_ADDR: :9003
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      otel-lgtm:
+        condition: service_started
     ports:
       - "127.0.0.1:8003:8003"
       - "127.0.0.1:9003:9003"
@@ -116,10 +192,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ../../migrations/postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} && psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -tAc 'SELECT 1 FROM users LIMIT 1' >/dev/null"]
       interval: 5s
       timeout: 3s
       retries: 20
+      start_period: 10s
 
   redis:
     image: redis:8.4.5-alpine
@@ -153,6 +230,32 @@ services:
       - "127.0.0.1:29092:29092"
     volumes:
       - kafka-data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9092"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  kafka-init:
+    image: apache/kafka:4.1.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - >-
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic journey.entered.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic recommendation.created.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic notification.sent.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic notification.delivered.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic recommendation.impressed.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic recommendation.clicked.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic redemption.succeeded.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic merchant.verified.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic visit.attributed.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic offer.changed.v1 --partitions 3 --replication-factor 1;
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic dlq.v1 --partitions 3 --replication-factor 1
 
   clickhouse:
     image: clickhouse/clickhouse-server@sha256:d7556a3841027651307b5aa08d72b5c467d0241d3db5b67d9e158ef3975626f5
@@ -161,6 +264,39 @@ services:
       - "127.0.0.1:9004:9000"
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ../../migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+      - ../clickhouse/users.d/default-user.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'DESCRIBE TABLE product_events' >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    depends_on:
+      clickhouse:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../../deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  otel-lgtm:
+    image: grafana/otel-lgtm@sha256:bb182ac3174a20923fa58f00d1790fa71eb06cc0150078c0b0e8feb9e6611492
+    ports:
+      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - otel-lgtm-data:/data
 
   qdrant:
     image: qdrant/qdrant:v1.15.1
@@ -169,10 +305,18 @@ services:
       - "127.0.0.1:6334:6334"
     volumes:
       - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
 volumes:
   postgres-data:
   redis-data:
   kafka-data:
   clickhouse-data:
+  grafana-data:
+  otel-lgtm-data:
   qdrant-data:

@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
+	"spacetime-node/internal/platform/observability"
 	"spacetime-node/internal/platform/outbox"
 )
 
@@ -89,6 +91,7 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 	if s == nil || s.db == nil || s.qdrant == nil || request.UserIDHash == "" || request.JourneyID == "" || request.StationID == "" || request.TraceID == "" || len(request.Vector) == 0 {
 		return Recommendation{}, ErrInvalidRecommendationRequest
 	}
+	defer observability.RecordDuration(ctx, "recommendation_duration_ms", started, attribute.String("service.name", "recommendation-service"))
 	limit := request.Limit
 	if limit < 1 {
 		limit = 10

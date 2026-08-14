@@ -31,6 +31,46 @@
 - 多區高可用、Kubernetes、生產級 Kafka 叢集。
 - 面向終端使用者的完整前端。
 
+## 目前實作狀態（2026-08-13）
+
+目前不是只有基礎設施空殼：進站 fixture、推薦、兌換、核銷 mock、分析與可觀測性已形成可執行的垂直切片。Web Push 與 Beacon resolver 也已完成 deterministic mock 垂直切片；真實手機推播供應商仍是後續功能。
+
+| 能力 | 狀態 | 現況與邊界 |
+|---|---|---|
+| Compose 與服務基線 | 已完成 | Gateway、mobility、recommendation、redemption、embedding indexer、analytics consumer，以及 Kafka、PostgreSQL、Redis、ClickHouse、Qdrant、LGTM 可共同啟動 |
+| 進站觸發推薦 | 已完成 demo 版 | App／腳本直接提供 `station_id`、`line_id`、`position_id`；Gateway 建立 journey 與 outbox event，Kafka 非同步觸發推薦 |
+| 推薦核心 | 已完成 demo 版 | Qdrant 召回候選，PostgreSQL 驗證站點、有效期、庫存與點數，規則排序後保存推薦與 explainability |
+| 兌換與核銷 | 已完成 | 原子扣點／扣庫存、`Idempotency-Key`、transactional outbox、狀態查詢與商家核銷 mock |
+| 分析與可觀測性 | 已完成基線 | ClickHouse product-event projection、Grafana dashboard、OpenTelemetry traces／metrics／logs |
+| Runtime readiness | 已完成基線 | `/healthz`、dependency-aware `/readyz`、`/version` 語義分離；Kratos graceful shutdown 有 10 秒上限 |
+| Beacon 進站解析 | 已完成 fixture/provider MVP | `mobility-service` 提供 `/v1/mobility/beacon/resolve`；以 SID+LID normalization、短期記憶體 cache、sanitized fixture 與 provider timeout fallback 建立位置 context；Gateway 仍可選擇使用此 API，尚未強制綁定真實 Beacon |
+| 使用者常用站／消費偏好 | 已完成 demo API | PostgreSQL 保存 profile／偏好，Gateway 提供 `/v1/users/me` 與 `/v1/users/me/preferences`；Redis 只保存可重建摘要 |
+| 手機推播 | 已完成 mock MVP | Gateway 提供訂閱註冊／撤銷；PostgreSQL 保存 subscription、worker 依使用者 timezone／時段篩選 `recommendation.created.v1`，並由 deterministic provider 發出 sent/delivered；VAPID／FCM/APNs 尚未接入 |
+| Embedding | 已完成管線、尚未使用語意模型 | offer indexer、Qdrant collection 與查詢流程可運作；目前 `demo-hash-v1` 只驗證資料流與責任邊界 |
+
+```mermaid
+flowchart LR
+    App["App / Demo script"] -->|"目前：直接提供 station_id"| Gateway["gateway-service"]
+    Beacon["捷運 Beacon observation"] -->|"UUID / Major / Minor / Power"| Mobility["mobility-service\nBeacon resolver"]
+    Mobility -->|"normalized station context"| Gateway
+    Gateway --> PG["PostgreSQL + outbox"]
+    PG --> Kafka["Kafka"]
+    Kafka --> Recommendation["recommendation-service"]
+    Recommendation --> Qdrant["Qdrant candidates"]
+    Recommendation --> PG
+    Kafka --> Analytics["analytics-consumer"]
+    Analytics --> ClickHouse["ClickHouse"]
+    App --> Redemption["redemption-service"]
+    Redemption --> PG
+
+    classDef complete fill:#d7f5df,stroke:#238636,color:#111;
+    classDef partial fill:#fff3bf,stroke:#9a6700,color:#111;
+    classDef planned fill:#f2f2f2,stroke:#6e7781,stroke-dasharray:5 5,color:#111;
+    class Gateway,PG,Kafka,Recommendation,Qdrant,Analytics,ClickHouse,Redemption complete;
+    class App partial;
+    class Beacon,Mobility planned;
+```
+
 ## 2. 核心設計原則
 
 1. **MVP 優先，但保留正確演進路徑**：只實作 demo 需要的能力；服務邊界、事件契約和可觀測性則依正式系統原則設計。
@@ -73,12 +113,56 @@ MVP 採用四個 API 服務與獨立 worker；不依照原始構想拆成七個�
 | 服務 | 責任 | 對外／對內介面 | MVP 不做什麼 |
 |---|---|---|---|
 | `gateway-service` | 接收模擬進站、提供查詢推薦等 BFF API、建立旅程識別 | HTTP；發布 Kafka | 真實閘門／北捷會員介接 |
+| `mobility-service` | 封裝 Beacon provider、SID+LID normalization、cache 與 fixture fallback | `POST /v1/mobility/beacon/resolve`；亦提供 gRPC | 不讓其他服務直接持有捷運 provider 帳密或格式 |
 | `recommendation-service` | 讀取偏好快取、向量召回候選、規則篩選與排序、保存推薦 | Kafka consumer、gRPC／HTTP（內部） | 真正模型訓練、讓 LLM 決策 |
 | `embedding-indexer` | 消費優惠變更事件、產生 embedding、更新 Qdrant 可重建索引 | Kafka consumer | 正式模型訓練與 GPU serving |
 | `redemption-service` | 點數扣除、庫存保留、兌換單、核銷 mock、outbox | HTTP／gRPC；發布 Kafka | 真實 POS、支付與退款流程 |
 | `analytics-consumer` | 消費產品事件、寫入 ClickHouse、產出漏斗資料 | Kafka consumer | 線上推薦決策 |
 
 `analytics-consumer` 可以先作為獨立 worker，而不是完整 Kratos 對外服務。這樣仍能展示 consumer group、事件解耦和資料投影。
+
+### Beacon 串接狀態與預計流程
+
+團隊口語中的「進站 becam」應是 **Beacon**。`mobility-service` 現在提供 Beacon resolver；現有 `POST /v1/entry-events` 仍由呼叫端直接傳入內部 `station_id`，因此真實 Beacon 不會阻塞既有 demo 流程。
+
+[SCRUM-38](https://hajimi-o.atlassian.net/browse/SCRUM-38) 記錄的目標來源是 `GetBeaconInfo`：輸入 UUID、Major、Minor、Power 與執行期帳密，回傳 BID、SID、LID、POSINO、POSITION、STATIONID 與站名。預計只由 `mobility-service` 呼叫外部服務，並遵守以下邊界：
+
+- 使用 `SID + LID` 映射內部 `station_id`，保留轉乘線別；不可直接把外部 `STATIONID` 當內部主鍵。
+- `POSINO`／`POSITION` 只提供站內位置或鄰近出口加分，不是到店、扣點或兌換資格證據。
+- 捷運帳密只存在 runtime secret，不進 Git、Kafka、log 或 trace。
+- 外部 API timeout 或無法使用時，退回 cache 或 sanitized station-level fixture；推薦與兌換不能被外部 API 阻塞。
+
+```mermaid
+sequenceDiagram
+    participant App as App
+    participant G as gateway-service
+    participant M as mobility-service
+    participant C as Redis cache
+    participant T as TRTC GetBeaconInfo
+    participant P as PostgreSQL outbox
+    participant K as Kafka
+
+    App->>G: Beacon observation
+    G->>M: Resolve UUID / Major / Minor / Power
+    M->>C: Read normalized Beacon mapping
+    alt Cache hit
+        C-->>M: station / line / position context
+    else Cache miss
+        M->>T: POST GetBeaconInfo with runtime credential
+        alt Valid response
+            T-->>M: SID / LID / POSINO / POSITION
+            M->>M: Normalize to internal station_id
+            M->>C: Cache normalized context
+        else Timeout or provider error
+            M->>M: Use sanitized station-level fixture
+        end
+    end
+    M-->>G: Normalized context + source + confidence
+    G->>P: Commit journey + journey.entered.v1
+    P->>K: Publish asynchronously
+```
+
+這張圖描述目前的 resolver 邊界；Gateway 尚未強制呼叫 resolver，正式 Beacon provider 與 Gateway 串接可在取得穩定外部契約後再開啟。
 
 ## 5. 技術選型
 
@@ -156,10 +240,28 @@ HTTP 是 demo 與外部呼叫入口；服務內部需要同步協作時使用 gR
 | `recommendation.clicked.v1` | demo client | analytics | `user_id_hash` | 使用者開啟或點擊 |
 | `redemption.succeeded.v1` | redemption | analytics | `user_id_hash` | 兌換交易成功 |
 | `merchant.verified.v1` | merchant mock | analytics | `journey_id` | 商家核銷，最強轉換證據 |
+| `visit.attributed.v1` | attribution worker / demo | analytics | `journey_id` | 推估到店，不能視為 POS 核銷 |
 | `offer.changed.v1` | offer administration / seed importer | embedding indexer | `offer_id` | 更新可重建的優惠向量索引 |
 | `dlq.v1` | 各 consumer | 維運人員 | 原 event key | 失敗事件保留與人工檢查 |
 
 同一個 `user_id_hash` 會寫入同一 partition，確保同一使用者的進站、推薦與兌換順序在該 partition 內一致。不同 consumer group 可獨立消費相同事件：推薦、分析與可觀測性不互相阻塞。
+
+### 6.4 Web Push mock 邊界
+
+```mermaid
+flowchart LR
+  WebApp[Web app] -->|POST /v1/notification-subscriptions| Gateway[Gateway]
+  Gateway --> PG[(PostgreSQL)]
+  Recommendation[Recommendation service] -->|recommendation.created.v1| Kafka[(Kafka)]
+  Kafka --> Worker[Notification worker]
+  Worker -->|timezone + local window + active subscription| PG
+  Worker --> Mock[Deterministic mock provider]
+  Mock -->|notification.sent.v1| Kafka
+  Mock -->|notification.delivered.v1| Kafka
+  Kafka --> Analytics[Analytics consumer]
+```
+
+前端目前註冊的是 `https://demo.invalid/...` synthetic subscription，讓跨裝置 demo 可以驗證 API、時段 eligibility、去重與 analytics event，而不需要憑證或真實裝置 token。撤銷會將 subscription 標記為 inactive；worker 不會讀取或寫入 raw device token 到事件、log 或 trace。未來接 VAPID／FCM／APNs 時只替換 provider adapter，保留上述事件契約。
 
 ## 7. 資料設計
 
@@ -206,11 +308,54 @@ experiment_id, variant, attribution_type, trace_id
 
 ### 7.4 Qdrant：優惠語意索引
 
-Qdrant collection `offer_embeddings_v1` 以 `offer_id` 作為 point ID，保存由優惠名稱、描述、標籤與商家類型產生的 embedding。payload 可包含 `station_ids`、`category`、`merchant_id`、`content_version` 與 `embedding_model`，用於縮小候選集。
+Qdrant collection `offer_embeddings_v1` 以穩定映射後的 point UUID 保存向量，原始 `offer_id` 留在 payload。payload 可包含 `station_ids`、`category`、`merchant_id`、`content_version` 與 `embedding_model`，用於縮小候選集。
 
 不應將庫存、點數餘額或兌換資格當作 Qdrant 的可靠決策資料；這些資訊即使複製到 payload，也只能作為預篩選，最終必須回 PostgreSQL 驗證。
 
 優惠內容更新時發布 `offer.changed.v1`，由 `embedding-indexer` 產生 embedding 後 upsert。換 embedding model 時建立新 collection，例如 `offer_embeddings_v2`，完整重建與驗證後再切換讀取設定。
+
+#### 現在怎麼做
+
+- `embedding-indexer` 啟動時建立 collection 與 station/category/version payload index，並 bootstrap PostgreSQL 中的 active offers。
+- `offer.changed.v1` 的 UPSERT／DELETE 只有在 Qdrant 成功後才 commit Kafka offset。
+- `demo-hash-v1` 以 SHA-256 將 offer title + description 轉成固定 32 維向量；推薦 query 則以 station + line + position 產生同維度向量。
+- 這個 hash **不是語意 embedding**，只用來驗證事件、重建索引、Qdrant filter/search、候選回查與失敗處理能端對端運作。
+
+#### 正式語意 embedding 預計怎麼做
+
+常用站點、推播時段、點數預算與明確 category 是結構化條件，應保存在 PostgreSQL，並以 filter／rule score 使用；第一版不建立 user vector，也不把敏感位置偏好寫進 Qdrant。
+
+語意模型只負責把「優惠文件」與「當下查詢文件」投影到同一向量空間：
+
+```text
+offer document = title + description + normalized category + merchant type
+query document = preferred categories + current/favorite station context + time context
+```
+
+```mermaid
+flowchart LR
+    OfferDB["PostgreSQL offers\nsource of truth"] -->|"offer.changed.v1"| Kafka["Kafka"]
+    Kafka --> Indexer["embedding-indexer"]
+    Indexer --> OfferDoc["Canonical offer document"]
+    OfferDoc --> Embedder["同一個 multilingual Embedder"]
+    Embedder -->|"offer vector + versioned payload"| Qdrant["Qdrant offer_embeddings_v2"]
+
+    Pref["PostgreSQL user preferences\nstructured, not vector DB"] --> Query["Query document builder"]
+    Context["station / time / journey context"] --> Query
+    Query --> Embedder
+    Embedder -->|"query vector + station filter"| Qdrant
+    Qdrant -->|"top-K offer IDs only"| Validate["PostgreSQL validation"]
+    Validate --> Rank["Rules: inventory / points / eligibility / preference"]
+    Rank --> Result["Final recommendation + reasons"]
+```
+
+模型不先綁定特定供應商；選型條件是繁體中文／多語能力、可在 demo 硬體執行、批次索引成本與穩定向量維度。導入時會：
+
+1. 準備一小組「偏好／站點情境 → 預期優惠」標註案例，先量測 Recall@K，而不是只憑模型名稱決定。
+2. 以同一個 `Embedder` adapter 同時產生 offer 與 query vectors，並正規化輸入文字。
+3. 建立新 collection `offer_embeddings_v2`，記錄 `embedding_model` 與 `content_version`，完整重建後和 v1 比較。
+4. 驗證召回品質、延遲與 fallback 後再切換設定；保留 v1 以便回退，不在原 collection 原地混用不同模型。
+5. Embedding service 不可用時，退回 PostgreSQL station/category 候選與既有規則排序，核心推薦仍可運作。
 
 ## 8. 一致性與失敗處理
 
@@ -341,6 +486,7 @@ recommendation-service
 redemption-service
 analytics-consumer
 kafka (KRaft, single broker)
+kafka-init (deterministic topic bootstrap)
 postgres
 redis
 clickhouse
@@ -351,6 +497,20 @@ otel-lgtm
 環境設定由 `.env.example` 描述。任何秘密資訊都不能進入 Git；MVP 預設使用 mock weather、mock notification、mock merchant verification，不需第三方憑證。
 
 LLM endpoint 也必須由設定注入。基礎 Compose 預設以 template / mock CopyGenerator 跑完整流程，不強制下載或啟動大型模型；需要展示 AI 時再指向本機輕量開源模型或相容 API。這可確保硬體條件不足、模型逾時或模型服務故障時，核心 demo 仍可運作。
+
+### 11.1 SCRUM-36 壓測命令與證據
+
+使用 Python 標準函式庫執行進站到推薦的並行 smoke load test，不需要額外壓測套件：
+
+```bash
+python3 scripts/load-test.py \
+  --base-url http://127.0.0.1:8000 \
+  --qdrant-url http://127.0.0.1:6333 \
+  --requests 10 --concurrency 2 \
+  --output /tmp/spacetime-load-test.json
+```
+
+先讓 Compose warm up 並確認 consumer group 已取得 partitions，再執行命令。輸出會保存 end-to-end P50/P95、recommendation decision latency、throughput、Qdrant search P50/P95、template fallback rate 與失敗數。Kafka lag 由同一次測試後執行 `kafka-consumer-groups.sh --describe` 保存；腳本不假裝從 API 推導 broker lag。Local template mode 的 `fallback_rate` 是預期值，切換 provider 後可用同一命令比較。一次可重現結果保留在 `docs/performance-scrum36.json`。
 
 ## 12. 開發順序
 
@@ -380,21 +540,25 @@ LLM endpoint 也必須由設定注入。基礎 Compose 預設以 template / mock
 
 ## 14. MVP 驗收清單
 
-- [ ] 任一開發者可依 README 成功啟動環境。
-- [ ] API 文件可從 Swagger UI 瀏覽與操作。
+- [x] 任一開發者可依 README 成功啟動環境。
+- [x] API 文件可從 Swagger UI 瀏覽與操作。
 - [x] Gateway 將進站 journey 與 `journey.entered.v1` outbox event 以同一筆 PostgreSQL transaction 建立；recommendation-service 透過 Kafka consumer 觸發推薦。
-- [ ] 推薦有可讀理由且不推薦過期、無庫存或點數不足優惠。
-- [ ] Qdrant 僅負責候選召回；最終優惠均已回 PostgreSQL 驗證。
-- [ ] LLM 只能根據已驗證 facts 生成 JSON 文案，失敗時自動使用模板且不影響推薦結果。
-- [ ] 兌換交易可防止重複扣點，並使用 transactional outbox 發布事件。
-- [ ] ClickHouse 可查到完整漏斗事件；Grafana 可顯示核心商業 KPI。
-- [ ] Tempo trace 可連結關鍵服務與 Kafka 處理；logs 不含 PII。
-- [ ] Demo 不依賴真實北捷、POS、FCM/APNs 或 LLM API。
+- [x] 推薦有可讀理由且不推薦過期、無庫存或點數不足優惠。
+- [x] Qdrant 僅負責候選召回；最終優惠均已回 PostgreSQL 驗證，API/demo 會展示 `candidates[]`。
+- [x] LLM 只能根據已驗證 facts 生成 JSON 文案，失敗時自動使用模板且不影響推薦結果。
+- [x] 兌換交易可防止重複扣點，並使用 transactional outbox 發布事件。
+- [x] Web Push mock 可註冊／撤銷訂閱，依使用者 timezone／local window 篩選，並產生 sent/delivered analytics events。
+- [x] ClickHouse 可查到完整漏斗事件；Grafana 可顯示核心商業 KPI。
+- [x] Tempo trace 可連結關鍵服務與 Kafka 處理；logs 不含 PII。
+- [x] SCRUM-36 壓測腳本與結果可重現；warm local Compose 的 E2E P95 335ms、Qdrant P95 11.69ms、Kafka lag 0。
+- [x] Demo 不依賴真實北捷、POS、FCM/APNs 或 LLM API。
 
 ## 15. 後續演進方向
 
+- 將 [SCRUM-38](https://hajimi-o.atlassian.net/browse/SCRUM-38) resolver 接到 Gateway 的可選 Beacon observation path；正式 provider 需先確認外部契約與 credentials。
+- 將 user preference API 接上正式身份驗證與 Web app session；目前仍以 `user_id_hash` 作為 demo identity。
+- 以標註案例評估 multilingual embedding，透過 `offer_embeddings_v2` 重建與切換，不在 v1 混用模型。
 - 使用 CWA 天氣 API 替換 mock context provider。
-- 加入 pgvector 或獨立 vector store，將 `OfferRetriever` 替換為 RAG 召回。
 - 接上真實推播與 POS adapter；保持 event schema 不變。
 - 將 analytics consumer 擴展為 A/B test、商家報表與成本／ROI 模型。
 - 將單機 Compose 演進至 Kubernetes、Kafka 多 broker、資料庫備援與正式 LGTM 部署。

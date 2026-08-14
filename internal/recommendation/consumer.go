@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel/attribute"
+	"spacetime-node/internal/platform/observability"
 )
 
 const (
@@ -62,31 +64,41 @@ func RunEntryConsumer(ctx context.Context, brokers []string, service *Recommenda
 			}
 			return err
 		}
+		eventCtx := observability.ExtractKafka(ctx, message.Headers)
+		eventCtx, span := observability.StartKafkaSpan(eventCtx, EntryTopic, "", true)
 		event, err := DecodeEntryEvent(message.Value)
 		if err != nil {
-			logger.Printf("skip invalid %s message: %v", EntryTopic, err)
-			if err := reader.CommitMessages(ctx, message); err != nil {
+			observability.Logf(eventCtx, logger, "skip invalid message", attribute.String("event_id", string(message.Key)), attribute.String("topic", EntryTopic))
+			if err := reader.CommitMessages(eventCtx, message); err != nil {
+				span.RecordError(err)
+				span.End()
 				return err
 			}
+			span.End()
 			continue
 		}
 
 		// A committed recommendation makes a replay safe for the demo. The
 		// recommendation transaction itself remains the source of truth.
 		if _, err := service.GetLatest(ctx, event.JourneyID); err == nil {
-			if err := reader.CommitMessages(ctx, message); err != nil {
+			if err := reader.CommitMessages(eventCtx, message); err != nil {
+				span.RecordError(err)
+				span.End()
 				return err
 			}
+			span.End()
 			continue
 		}
-		vector, err := embed(ctx, OfferDocument{
+		vector, err := embed(eventCtx, OfferDocument{
 			Title:       event.Payload.StationID,
 			Description: strings.TrimSpace(event.Payload.LineID + " " + event.Payload.PositionID),
 		})
 		if err != nil {
+			span.RecordError(err)
+			span.End()
 			return err
 		}
-		_, err = service.Recommend(ctx, RecommendationRequest{
+		_, err = service.Recommend(eventCtx, RecommendationRequest{
 			UserIDHash: event.UserIDHash,
 			JourneyID:  event.JourneyID,
 			StationID:  event.Payload.StationID,
@@ -95,11 +107,18 @@ func RunEntryConsumer(ctx context.Context, brokers []string, service *Recommenda
 			Limit:      10,
 		})
 		if err != nil {
-			logger.Printf("recommendation failed for journey %s: %v", event.JourneyID, err)
+			observability.Logf(eventCtx, logger, "recommendation failed", attribute.String("event_id", event.EventID), attribute.String("journey_id", event.JourneyID), attribute.String("error", err.Error()))
+			span.RecordError(err)
+			span.End()
 			continue
 		}
-		if err := reader.CommitMessages(ctx, message); err != nil {
+		span.SetAttributes(attribute.String("messaging.message.id", event.EventID), attribute.String("journey.id", event.JourneyID))
+		if err := reader.CommitMessages(eventCtx, message); err != nil {
+			span.RecordError(err)
+			span.End()
 			return err
 		}
+		observability.RecordValue(eventCtx, "kafka_consumer_lag", int64(reader.Stats().Lag), attribute.String("messaging.destination.name", EntryTopic))
+		span.End()
 	}
 }

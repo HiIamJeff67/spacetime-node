@@ -13,6 +13,7 @@ import (
 	v1 "spacetime-node/api/proto/spacetime_node/v1"
 	"spacetime-node/internal/platform/app"
 	"spacetime-node/internal/platform/config"
+	"spacetime-node/internal/platform/observability"
 	"spacetime-node/internal/platform/outbox"
 	"spacetime-node/internal/redemption"
 )
@@ -35,14 +36,14 @@ func main() {
 	publisher := outbox.NewKafkaPublisher(db, strings.Split(dependencies.KafkaBrokers, ","))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go outbox.RunPublisher(ctx, publisher, 100, 0, log.Default())
+	go outbox.RunPublisher(ctx, publisher, 100, 0, observability.NewLogger("redemption-service"))
 
 	setup := func(httpServer *http.Server, grpcServer *grpc.Server) error {
 		v1.RegisterRedemptionServiceHTTPServer(httpServer, api)
 		v1.RegisterRedemptionServiceServer(grpcServer, api)
 		return nil
 	}
-	if err := app.RunWithSetup("redemption-service", ":8003", ":9003", version, setup); err != nil {
+	if err := app.RunWithSetup("redemption-service", ":8003", ":9003", version, setup, db.PingContext); err != nil {
 		log.Fatal(err)
 	}
 }

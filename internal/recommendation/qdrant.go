@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"spacetime-node/internal/platform/observability"
 )
 
 var ErrCandidateRecall = errors.New("candidate recall failed")
@@ -32,10 +34,32 @@ func NewQdrantClient(baseURL string, client *http.Client) *QdrantClient {
 	return &QdrantClient{baseURL: strings.TrimRight(baseURL, "/"), client: client}
 }
 
+func (c *QdrantClient) Ping(ctx context.Context) error {
+	if c == nil || c.client == nil || c.baseURL == "" {
+		return ErrCandidateRecall
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/readyz", nil)
+	if err != nil {
+		return ErrCandidateRecall
+	}
+	response, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrCandidateRecall, err)
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("%w: qdrant status %s", ErrCandidateRecall, response.Status)
+	}
+	return nil
+}
+
 func (c *QdrantClient) Search(ctx context.Context, collection string, vector []float32, stationID string, limit int) ([]QdrantCandidate, error) {
 	if c == nil || c.client == nil || c.baseURL == "" || collection == "" || len(vector) == 0 || limit < 1 {
 		return nil, ErrCandidateRecall
 	}
+	started := time.Now()
+	defer observability.RecordDuration(ctx, "qdrant_search_duration_ms", started)
 	requestBody := struct {
 		Vector      []float32     `json:"vector"`
 		Limit       int           `json:"limit"`

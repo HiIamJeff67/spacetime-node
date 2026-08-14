@@ -1,0 +1,53 @@
+{
+  "uid": "spacetime-funnel",
+  "title": "Spacetime Node Business Funnel",
+  "tags": ["spacetime-node", "business"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Journeys",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [{ "refId": "A", "format": "table", "rawSql": "SELECT uniqExact(journey_id) AS journeys FROM product_events FINAL WHERE journey_id != '' AND $__timeFilter(occurred_at)" }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "POS Verified",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [{ "refId": "A", "format": "table", "rawSql": "SELECT uniqExact(journey_id) AS verified_journeys FROM product_events FINAL WHERE event_type = 'merchant.verified.v1' AND $__timeFilter(occurred_at)" }]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Journey Funnel",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [{ "refId": "A", "format": "table", "rawSql": "SELECT event_type, uniqExact(event_id) AS events, uniqExact(journey_id) AS journeys FROM product_events FINAL WHERE $__timeFilter(occurred_at) GROUP BY event_type ORDER BY events DESC" }]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Copy Variant Performance",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [{ "refId": "A", "format": "table", "rawSql": "SELECT variant, countIf(event_type = 'recommendation.impressed.v1') AS impressions, countIf(event_type = 'recommendation.clicked.v1') AS clicks, countIf(event_type = 'redemption.succeeded.v1') AS redemptions, countIf(event_type = 'merchant.verified.v1') AS verified FROM product_events FINAL WHERE variant != '' AND $__timeFilter(occurred_at) GROUP BY variant ORDER BY impressions DESC" }]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Observed vs Inferred Visits",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [{ "refId": "A", "format": "table", "rawSql": "SELECT attribution_type, uniqExact(journey_id) AS journeys FROM product_events FINAL WHERE attribution_type != '' AND $__timeFilter(occurred_at) GROUP BY attribution_type ORDER BY journeys DESC" }]
+    }
+  ]
+}
