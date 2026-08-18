@@ -109,6 +109,8 @@ func TestOpenAPIIncludesDemoFlow(t *testing.T) {
 		"operationId: JourneyService_CreateEntryEvent",
 		"/v1/recommendations/latest:",
 		"operationId: JourneyService_GetLatestRecommendation",
+		"/v1/recommendation-events:",
+		"operationId: JourneyService_RecordRecommendationEvent",
 		"/v1/redemptions:",
 		"operationId: RedemptionService_CreateRedemption",
 		"/v1/redemptions/{redemption_id}/verify:",

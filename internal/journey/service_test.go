@@ -13,3 +13,16 @@ func TestValidUserIDHash(t *testing.T) {
 		}
 	}
 }
+
+func TestValidRecommendationEventType(t *testing.T) {
+	for _, eventType := range []string{recommendationImpressedTopic, recommendationClickedTopic} {
+		if !validRecommendationEventType(eventType) {
+			t.Fatalf("expected valid recommendation event type: %q", eventType)
+		}
+	}
+	for _, eventType := range []string{"", "journey.entered.v1", "recommendation.impressed.v2"} {
+		if validRecommendationEventType(eventType) {
+			t.Fatalf("expected invalid recommendation event type: %q", eventType)
+		}
+	}
+}

@@ -19,18 +19,22 @@ const _ = http.SupportPackageIsVersion3
 
 const OperationJourneyServiceCreateEntryEvent = "/spacetime_node.v1.JourneyService/CreateEntryEvent"
 const OperationJourneyServiceGetLatestRecommendation = "/spacetime_node.v1.JourneyService/GetLatestRecommendation"
+const OperationJourneyServiceRecordRecommendationEvent = "/spacetime_node.v1.JourneyService/RecordRecommendationEvent"
 
 type JourneyServiceHTTPServer interface {
 	// CreateEntryEvent CreateEntryEvent starts the demo journey and asynchronously triggers recommendation.
 	CreateEntryEvent(context.Context, *CreateEntryEventRequest) (*CreateEntryEventResponse, error)
 	// GetLatestRecommendation GetLatestRecommendation returns the latest recommendation for a journey.
 	GetLatestRecommendation(context.Context, *GetLatestRecommendationRequest) (*GetLatestRecommendationResponse, error)
+	// RecordRecommendationEvent RecordRecommendationEvent records browser engagement for analytics attribution.
+	RecordRecommendationEvent(context.Context, *RecordRecommendationEventRequest) (*RecordRecommendationEventResponse, error)
 }
 
 func RegisterJourneyServiceHTTPServer(s *http.Server, srv JourneyServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("POST", "/v1/entry-events", _JourneyService_CreateEntryEvent0_HTTP_Handler(srv))
 	r.Handle("GET", "/v1/recommendations/latest", _JourneyService_GetLatestRecommendation0_HTTP_Handler(srv))
+	r.Handle("POST", "/v1/recommendation-events", _JourneyService_RecordRecommendationEvent0_HTTP_Handler(srv))
 }
 
 func _JourneyService_CreateEntryEvent0_HTTP_Handler(srv JourneyServiceHTTPServer) func(ctx http.Context) error {
@@ -71,11 +75,32 @@ func _JourneyService_GetLatestRecommendation0_HTTP_Handler(srv JourneyServiceHTT
 	}
 }
 
+func _JourneyService_RecordRecommendationEvent0_HTTP_Handler(srv JourneyServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in RecordRecommendationEventRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationJourneyServiceRecordRecommendationEvent)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.RecordRecommendationEvent(ctx, req.(*RecordRecommendationEventRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*RecordRecommendationEventResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
 type JourneyServiceHTTPClient interface {
 	// CreateEntryEvent CreateEntryEvent starts the demo journey and asynchronously triggers recommendation.
 	CreateEntryEvent(ctx context.Context, req *CreateEntryEventRequest, opts ...http.CallOption) (rsp *CreateEntryEventResponse, err error)
 	// GetLatestRecommendation GetLatestRecommendation returns the latest recommendation for a journey.
 	GetLatestRecommendation(ctx context.Context, req *GetLatestRecommendationRequest, opts ...http.CallOption) (rsp *GetLatestRecommendationResponse, err error)
+	// RecordRecommendationEvent RecordRecommendationEvent records browser engagement for analytics attribution.
+	RecordRecommendationEvent(ctx context.Context, req *RecordRecommendationEventRequest, opts ...http.CallOption) (rsp *RecordRecommendationEventResponse, err error)
 }
 
 type JourneyServiceHTTPClientImpl struct {
@@ -115,6 +140,24 @@ func (c *JourneyServiceHTTPClientImpl) GetLatestRecommendation(ctx context.Conte
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RecordRecommendationEvent RecordRecommendationEvent records browser engagement for analytics attribution.
+func (c *JourneyServiceHTTPClientImpl) RecordRecommendationEvent(ctx context.Context, in *RecordRecommendationEventRequest, opts ...http.CallOption) (*RecordRecommendationEventResponse, error) {
+	var out RecordRecommendationEventResponse
+	pattern := "/v1/recommendation-events"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationJourneyServiceRecordRecommendationEvent),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

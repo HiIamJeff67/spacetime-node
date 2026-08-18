@@ -14,7 +14,11 @@ import (
 	"spacetime-node/internal/platform/outbox"
 )
 
-const entryTopic = "journey.entered.v1"
+const (
+	entryTopic                   = "journey.entered.v1"
+	recommendationImpressedTopic = "recommendation.impressed.v1"
+	recommendationClickedTopic   = "recommendation.clicked.v1"
+)
 
 type Service struct {
 	v1.UnimplementedJourneyServiceServer
@@ -170,6 +174,103 @@ func (s *Service) GetLatestRecommendation(ctx context.Context, request *v1.GetLa
 	response.Body = body.String
 	response.CopySource = source.String
 	return &response, nil
+}
+
+func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.RecordRecommendationEventRequest) (*v1.RecordRecommendationEventResponse, error) {
+	if s == nil || s.db == nil || request == nil || request.GetUserIdHash() == "" || request.GetRecommendationId() == "" {
+		return nil, v1.ErrorInvalidRequest("user_id_hash and recommendation_id are required")
+	}
+	if !validUserIDHash(request.GetUserIdHash()) {
+		return nil, v1.ErrorInvalidRequest("user_id_hash must be a sha256 hash")
+	}
+	if !validRecommendationEventType(request.GetEventType()) {
+		return nil, v1.ErrorInvalidRequest("event_type must be recommendation.impressed.v1 or recommendation.clicked.v1")
+	}
+	if request.GetRequestContext() == nil || request.GetRequestContext().GetJourneyId() == "" {
+		return nil, v1.ErrorInvalidRequest("request_context.journey_id is required")
+	}
+	surface := request.GetSurface()
+	if surface == "" {
+		surface = "web"
+	}
+	if surface != "web" && surface != "demo" {
+		return nil, v1.ErrorInvalidRequest("surface must be web or demo")
+	}
+
+	traceID := request.GetRequestContext().GetTraceId()
+	if traceID == "" {
+		traceID = uuid.NewString()
+	}
+	eventID := uuid.NewString()
+	journeyID := request.GetRequestContext().GetJourneyId()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var offerID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT r.offer_id
+		FROM recommendations r
+		JOIN journeys j ON j.journey_id = r.journey_id
+		JOIN users u ON u.user_id = j.user_id
+		WHERE r.recommendation_id = $1
+		  AND r.journey_id = $2
+		  AND u.user_id_hash = $3
+		ORDER BY r.created_at DESC
+		LIMIT 1`, request.GetRecommendationId(), journeyID, request.GetUserIdHash()).Scan(&offerID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, v1.ErrorRecommendationNotFound("recommendation is not associated with this journey")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if request.GetOfferId() != "" && request.GetOfferId() != offerID {
+		return nil, v1.ErrorInvalidRequest("offer_id does not match recommendation")
+	}
+
+	payload, err := json.Marshal(struct {
+		OfferID string `json:"offer_id"`
+		Surface string `json:"surface"`
+	}{OfferID: offerID, Surface: surface})
+	if err != nil {
+		return nil, err
+	}
+	event, err := json.Marshal(struct {
+		EventID          string          `json:"event_id"`
+		EventType        string          `json:"event_type"`
+		SchemaVersion    int             `json:"schema_version"`
+		OccurredAt       string          `json:"occurred_at"`
+		Producer         string          `json:"producer"`
+		TraceID          string          `json:"trace_id"`
+		JourneyID        string          `json:"journey_id"`
+		RecommendationID string          `json:"recommendation_id"`
+		UserIDHash       string          `json:"user_id_hash"`
+		Payload          json.RawMessage `json:"payload"`
+	}{
+		EventID: eventID, EventType: request.GetEventType(), SchemaVersion: 1,
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Producer: "gateway-service",
+		TraceID: traceID, JourneyID: journeyID, RecommendationID: request.GetRecommendationId(),
+		UserIDHash: request.GetUserIdHash(), Payload: payload,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := outbox.Enqueue(ctx, tx, outbox.Event{
+		ID: eventID, Topic: request.GetEventType(), Key: request.GetUserIdHash(), Payload: event,
+	}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &v1.RecordRecommendationEventResponse{EventId: eventID}, nil
+}
+
+func validRecommendationEventType(value string) bool {
+	return value == recommendationImpressedTopic || value == recommendationClickedTopic
 }
 
 func validUserIDHash(value string) bool {

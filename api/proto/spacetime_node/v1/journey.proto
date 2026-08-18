@@ -20,6 +20,14 @@ service JourneyService {
   rpc GetLatestRecommendation(GetLatestRecommendationRequest) returns (GetLatestRecommendationResponse) {
     option (google.api.http) = {get: "/v1/recommendations/latest"};
   }
+
+  // RecordRecommendationEvent records browser engagement for analytics attribution.
+  rpc RecordRecommendationEvent(RecordRecommendationEventRequest) returns (RecordRecommendationEventResponse) {
+    option (google.api.http) = {
+      post: "/v1/recommendation-events"
+      body: "*"
+    };
+  }
 }
 
 message CreateEntryEventRequest {
@@ -49,6 +57,19 @@ message GetLatestRecommendationResponse {
   string copy_source = 7;
   int64 decision_latency_ms = 8;
   repeated RecommendationCandidate candidates = 9;
+}
+
+message RecordRecommendationEventRequest {
+  RequestContext request_context = 1;
+  string user_id_hash = 2;
+  string recommendation_id = 3;
+  string event_type = 4;
+  string offer_id = 5;
+  string surface = 6;
+}
+
+message RecordRecommendationEventResponse {
+  string event_id = 1;
 }
 
 // RecommendationCandidate exposes the explainable boundary between vector recall and rule validation.

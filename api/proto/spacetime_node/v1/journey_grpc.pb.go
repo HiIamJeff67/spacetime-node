@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	JourneyService_CreateEntryEvent_FullMethodName        = "/spacetime_node.v1.JourneyService/CreateEntryEvent"
-	JourneyService_GetLatestRecommendation_FullMethodName = "/spacetime_node.v1.JourneyService/GetLatestRecommendation"
+	JourneyService_CreateEntryEvent_FullMethodName          = "/spacetime_node.v1.JourneyService/CreateEntryEvent"
+	JourneyService_GetLatestRecommendation_FullMethodName   = "/spacetime_node.v1.JourneyService/GetLatestRecommendation"
+	JourneyService_RecordRecommendationEvent_FullMethodName = "/spacetime_node.v1.JourneyService/RecordRecommendationEvent"
 )
 
 // JourneyServiceClient is the client API for JourneyService service.
@@ -31,6 +32,8 @@ type JourneyServiceClient interface {
 	CreateEntryEvent(ctx context.Context, in *CreateEntryEventRequest, opts ...grpc.CallOption) (*CreateEntryEventResponse, error)
 	// GetLatestRecommendation returns the latest recommendation for a journey.
 	GetLatestRecommendation(ctx context.Context, in *GetLatestRecommendationRequest, opts ...grpc.CallOption) (*GetLatestRecommendationResponse, error)
+	// RecordRecommendationEvent records browser engagement for analytics attribution.
+	RecordRecommendationEvent(ctx context.Context, in *RecordRecommendationEventRequest, opts ...grpc.CallOption) (*RecordRecommendationEventResponse, error)
 }
 
 type journeyServiceClient struct {
@@ -61,6 +64,16 @@ func (c *journeyServiceClient) GetLatestRecommendation(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *journeyServiceClient) RecordRecommendationEvent(ctx context.Context, in *RecordRecommendationEventRequest, opts ...grpc.CallOption) (*RecordRecommendationEventResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordRecommendationEventResponse)
+	err := c.cc.Invoke(ctx, JourneyService_RecordRecommendationEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // JourneyServiceServer is the server API for JourneyService service.
 // All implementations must embed UnimplementedJourneyServiceServer
 // for forward compatibility.
@@ -69,6 +82,8 @@ type JourneyServiceServer interface {
 	CreateEntryEvent(context.Context, *CreateEntryEventRequest) (*CreateEntryEventResponse, error)
 	// GetLatestRecommendation returns the latest recommendation for a journey.
 	GetLatestRecommendation(context.Context, *GetLatestRecommendationRequest) (*GetLatestRecommendationResponse, error)
+	// RecordRecommendationEvent records browser engagement for analytics attribution.
+	RecordRecommendationEvent(context.Context, *RecordRecommendationEventRequest) (*RecordRecommendationEventResponse, error)
 	mustEmbedUnimplementedJourneyServiceServer()
 }
 
@@ -84,6 +99,9 @@ func (UnimplementedJourneyServiceServer) CreateEntryEvent(context.Context, *Crea
 }
 func (UnimplementedJourneyServiceServer) GetLatestRecommendation(context.Context, *GetLatestRecommendationRequest) (*GetLatestRecommendationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLatestRecommendation not implemented")
+}
+func (UnimplementedJourneyServiceServer) RecordRecommendationEvent(context.Context, *RecordRecommendationEventRequest) (*RecordRecommendationEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecordRecommendationEvent not implemented")
 }
 func (UnimplementedJourneyServiceServer) mustEmbedUnimplementedJourneyServiceServer() {}
 func (UnimplementedJourneyServiceServer) testEmbeddedByValue()                        {}
@@ -142,6 +160,24 @@ func _JourneyService_GetLatestRecommendation_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _JourneyService_RecordRecommendationEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordRecommendationEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(JourneyServiceServer).RecordRecommendationEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: JourneyService_RecordRecommendationEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(JourneyServiceServer).RecordRecommendationEvent(ctx, req.(*RecordRecommendationEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // JourneyService_ServiceDesc is the grpc.ServiceDesc for JourneyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -156,6 +192,10 @@ var JourneyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLatestRecommendation",
 			Handler:    _JourneyService_GetLatestRecommendation_Handler,
+		},
+		{
+			MethodName: "RecordRecommendationEvent",
+			Handler:    _JourneyService_RecordRecommendationEvent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

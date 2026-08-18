@@ -121,6 +121,31 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/recommendation-events:
+        post:
+            tags:
+                - JourneyService
+            description: RecordRecommendationEvent records browser engagement for analytics attribution.
+            operationId: JourneyService_RecordRecommendationEvent
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RecordRecommendationEventRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RecordRecommendationEventResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/recommendations/latest:
         get:
             tags:
@@ -427,6 +452,26 @@ components:
                     items:
                         type: string
             description: RecommendationCandidate exposes the explainable boundary between vector recall and rule validation.
+        RecordRecommendationEventRequest:
+            type: object
+            properties:
+                request_context:
+                    $ref: '#/components/schemas/RequestContext'
+                user_id_hash:
+                    type: string
+                recommendation_id:
+                    type: string
+                event_type:
+                    type: string
+                offer_id:
+                    type: string
+                surface:
+                    type: string
+        RecordRecommendationEventResponse:
+            type: object
+            properties:
+                event_id:
+                    type: string
         Redemption:
             type: object
             properties:

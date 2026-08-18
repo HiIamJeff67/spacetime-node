@@ -87,6 +87,9 @@ KAFKA_BROKERS=localhost:29092 go run ./cmd/analytics-demo \
 
 SCRUM-13 的完整交付 runbook、驗收證據與 failure boundary 請見 [`docs/delivery.md`](docs/delivery.md)。
 
+公開 Demo 的 Google Cloud VM、Cloudflare Pages、CORS 與 Quick Tunnel／tmux
+部署步驟請見 [`docs/demo-deployment.md`](docs/demo-deployment.md)。
+
 API contract 改動後執行 `make proto`，重新產生 Go、gRPC、Kratos HTTP 與標準錯誤碼 stub；它使用 `go.mod` 鎖定的 Kratos v3 Proto include。
 
 提交前可執行 `make check`，一次完成 `go mod tidy -diff`、`go test ./...`、`go vet ./...` 與 Compose config validation。
