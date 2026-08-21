@@ -45,6 +45,7 @@
 | Runtime readiness | 已完成基線 | `/healthz`、dependency-aware `/readyz`、`/version` 語義分離；Kratos graceful shutdown 有 10 秒上限 |
 | Beacon 進站解析 | 已完成 fixture/provider MVP | `mobility-service` 提供 `/v1/mobility/beacon/resolve`；以 SID+LID normalization、短期記憶體 cache、sanitized fixture 與 provider timeout fallback 建立位置 context；Gateway 仍可選擇使用此 API，尚未強制綁定真實 Beacon |
 | 使用者常用站／消費偏好 | 已完成 demo API | PostgreSQL 保存 profile／偏好，Gateway 提供 `/v1/users/me` 與 `/v1/users/me/preferences`；Redis 只保存可重建摘要 |
+| 推薦行為回饋閉環 | 已完成 demo 版 | impression、click、dismiss、redemption 以 journey／recommendation 關聯；click／dismiss／redemption 在交易內更新 bounded category weights，重播以 deterministic event identity 去重並影響下一次排序 |
 | 手機推播 | 已完成 mock + Web Push MVP | Gateway 提供訂閱註冊／撤銷；PostgreSQL 保存 subscription、worker 依使用者 timezone／時段篩選 `recommendation.created.v1`，可用 VAPID provider 發送加密瀏覽器通知；push service 接受後記錄 sent，mock 才產生 delivered |
 | Embedding | 已完成可切換 adapter | 預設 `demo-hash-v1` 保持 demo 自包含；設定 `EMBEDDING_MODE=http` 可讓 offer 與「偏好＋站點情境」共用 OpenAI-compatible semantic embedding，並切換到獨立 Qdrant collection |
 
@@ -236,9 +237,11 @@ HTTP 是 demo 與外部呼叫入口；服務內部需要同步協作時使用 gR
 | `recommendation.created.v1` | recommendation | notification mock、analytics | `user_id_hash` | 推薦已產生 |
 | `notification.sent.v1` | notification mock | analytics | `user_id_hash` | 推播送出 |
 | `notification.delivered.v1` | notification mock | analytics | `user_id_hash` | 供應商／裝置確認送達 |
-| `recommendation.impressed.v1` | demo client | analytics | `user_id_hash` | 使用者實際看到內容 |
-| `recommendation.clicked.v1` | demo client | analytics | `user_id_hash` | 使用者開啟或點擊 |
-| `redemption.succeeded.v1` | redemption | analytics | `user_id_hash` | 兌換交易成功 |
+| `notification.failed.v1` | notification worker | analytics | `user_id_hash` | 推播失敗；永久失效 endpoint 會同步停用 |
+| `recommendation.impressed.v1` | gateway／demo client | preference feedback、analytics | `user_id_hash` | 使用者實際看到內容 |
+| `recommendation.clicked.v1` | gateway／demo client | preference feedback、analytics | `user_id_hash` | 使用者開啟或點擊，增加對應分類權重 |
+| `recommendation.dismissed.v1` | gateway／demo client | preference feedback、analytics | `user_id_hash` | 使用者忽略推薦，降低對應分類權重 |
+| `redemption.succeeded.v1` | redemption | preference feedback、analytics | `user_id_hash` | 兌換交易成功，增加對應分類權重 |
 | `merchant.verified.v1` | merchant mock | analytics | `journey_id` | 商家核銷，最強轉換證據 |
 | `visit.attributed.v1` | attribution worker / demo | analytics | `journey_id` | 推估到店，不能視為 POS 核銷 |
 | `offer.changed.v1` | offer administration / seed importer | embedding indexer | `offer_id` | 更新可重建的優惠向量索引 |
@@ -259,12 +262,12 @@ flowchart LR
   Provider -->|mock| Mock[Deterministic mock]
   Provider -->|webpush + VAPID| PushService[Browser Push Service]
   Mock -->|notification.sent.v1 + delivered| Kafka
-  PushService -->|notification.sent.v1| Kafka
+  PushService -->|notification.sent.v1 / failed| Kafka
   PushService --> Browser[Service worker]
   Kafka --> Analytics[Analytics consumer]
 ```
 
-前端有 `VITE_VAPID_PUBLIC_KEY` 時會透過 `PushManager.subscribe()` 註冊真實 browser subscription，service worker 接收 push 並顯示通知；未設定時才使用 `https://demo.invalid/...` synthetic subscription。Backend 以 `NOTIFICATION_PROVIDER=webpush`、VAPID subject/public/private key 啟用加密發送，預設仍是 mock。撤銷會將 subscription 標記為 inactive；worker 不會把 raw device token 寫入事件、log 或 trace。Web Push provider 只能確認 push service 接受，因此 `notification.delivered.v1` 仍保留給 deterministic mock 或未來的 client receipt。
+前端有 `VITE_VAPID_PUBLIC_KEY` 時會透過 `PushManager.subscribe()` 註冊真實 browser subscription，service worker 接收 push 並顯示通知；未設定時才使用 `https://demo.invalid/...` synthetic subscription。Backend 以 `NOTIFICATION_PROVIDER=webpush`、VAPID subject/public/private key 啟用加密發送，預設仍是 mock。撤銷會將 subscription 標記為 inactive；worker 不會把 raw device token 寫入事件、log 或 trace。Web Push provider 只能確認 push service 接受，因此 `notification.delivered.v1` 仍保留給 deterministic mock 或未來的 client receipt；HTTP 404/410 會記錄 `notification.failed.v1` 並自動停用失效訂閱。
 
 ## 7. 資料設計
 
@@ -326,13 +329,14 @@ Qdrant collection `offer_embeddings_v1` 以穩定映射後的 point UUID 保存�
 
 #### 語意 embedding adapter
 
-常用站點、推播時段、點數預算與明確 category 是結構化條件，應保存在 PostgreSQL，並以 filter／rule score 使用；profile vector 只在進站查詢時即時產生，不建立持久 user vector，也不把敏感位置偏好寫進 Qdrant。
+常用站點、推播時段、點數預算與明確 category 是結構化條件，應保存在 PostgreSQL，並以 filter／rule score 使用；profile vector 只在進站查詢時即時產生，不建立持久 user vector，也不把敏感位置偏好寫進 Qdrant。每次 profile embedding 都帶有 `embedding_model` 與由 canonical profile input 計算的 `content_version`，因此可由偏好與 feedback weights 重建。
 
 語意模型只負責把「優惠文件」與「當下查詢文件」投影到同一向量空間：
 
 ```text
 offer document = title + description + normalized category + merchant type
-query document = preferred categories + current/favorite station context + time context
+profile document = preferred categories + learned category weights + budget + destination
+query context = current station + line + position
 ```
 
 ```mermaid
@@ -355,7 +359,7 @@ flowchart LR
 模型不綁定特定供應商；adapter 使用通用 `/v1/embeddings` contract。預設仍是 hash fallback，啟用語意模式時以同一個 adapter 產生 offer vector 與每次進站的 profile/query vector。選型條件是繁體中文／多語能力、可在 demo 硬體執行、批次索引成本與穩定向量維度。導入時會：
 
 1. 準備一小組「偏好／站點情境 → 預期優惠」標註案例，先量測 Recall@K，而不是只憑模型名稱決定。
-2. 以同一個 `Embedder` adapter 同時產生 offer 與 profile/query vectors，並正規化輸入文字；profile vector 目前在每次進站時即時產生，不另存敏感向量。
+2. 以同一個 `Embedder` adapter 同時產生 offer 與 profile/query vectors，並正規化輸入文字；profile vector 目前在每次進站時即時產生，保留 model/content version metadata，不另存敏感向量。
 3. 建立新 collection `offer_embeddings_v2`，記錄 `embedding_model` 與 `content_version`，完整重建後和 v1 比較。
 4. 驗證召回品質、延遲與 fallback 後再切換設定；保留 v1 以便回退，不在原 collection 原地混用不同模型。
 5. Embedding service 不可用時，保留 `EMBEDDING_MODE=hash` fallback；核心推薦仍可運作，硬性站點／點數／庫存規則不交給模型決定。

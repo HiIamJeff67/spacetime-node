@@ -52,7 +52,9 @@ func main() {
 		db,
 		qdrant,
 		recommendation.NewPreferenceStore(redisClient, recommendation.PreferenceTTL).WithDB(db),
-	).WithQueryEmbedder(embedder).WithEmbeddingCollection(dependencies.EmbeddingCollection)
+	).WithQueryEmbedder(embedder).
+		WithEmbeddingModel(dependencies.EmbeddingModel).
+		WithEmbeddingCollection(dependencies.EmbeddingCollection)
 	if dependencies.LLMMode == "provider" && dependencies.LLMBaseURL != "" && dependencies.LLMModel != "" {
 		service.WithCopyGenerator(recommendation.NewHTTPCopyGenerator(dependencies.LLMBaseURL, dependencies.LLMModel, nil), recommendation.DefaultCopyTimeout)
 	}

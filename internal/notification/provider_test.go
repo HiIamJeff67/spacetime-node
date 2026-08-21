@@ -23,3 +23,10 @@ func TestConfiguredPushProviderRequiresVAPIDKeys(t *testing.T) {
 		t.Fatalf("expected invalid provider error, got %v", err)
 	}
 }
+
+func TestPushDeliveryErrorDeactivatesGoneSubscription(t *testing.T) {
+	err := &PushDeliveryError{StatusCode: 410, Err: errors.New("gone")}
+	if !IsInactiveSubscriptionError(err) || PushFailureCode(err) != "http_410" {
+		t.Fatalf("unexpected push error classification: inactive=%t code=%s", IsInactiveSubscriptionError(err), PushFailureCode(err))
+	}
+}

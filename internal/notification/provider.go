@@ -13,6 +13,38 @@ import (
 
 var ErrInvalidPushProvider = errors.New("invalid push provider configuration")
 
+type PushDeliveryError struct {
+	StatusCode int
+	Err        error
+}
+
+func (e *PushDeliveryError) Error() string {
+	if e == nil || e.Err == nil {
+		return "push delivery failed"
+	}
+	return e.Err.Error()
+}
+
+func (e *PushDeliveryError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func IsInactiveSubscriptionError(err error) bool {
+	var deliveryErr *PushDeliveryError
+	return errors.As(err, &deliveryErr) && (deliveryErr.StatusCode == http.StatusNotFound || deliveryErr.StatusCode == http.StatusGone)
+}
+
+func PushFailureCode(err error) string {
+	var deliveryErr *PushDeliveryError
+	if errors.As(err, &deliveryErr) && deliveryErr.StatusCode > 0 {
+		return fmt.Sprintf("http_%d", deliveryErr.StatusCode)
+	}
+	return "provider_error"
+}
+
 type PushSubscription struct {
 	ID       string
 	Endpoint string
@@ -76,7 +108,10 @@ func (p *webPushProvider) Send(ctx context.Context, subscription PushSubscriptio
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("web push service returned %s", response.Status)
+		return "", &PushDeliveryError{
+			StatusCode: response.StatusCode,
+			Err:        fmt.Errorf("web push service returned %s", response.Status),
+		}
 	}
 	return "sent", nil
 }

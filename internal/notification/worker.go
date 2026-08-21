@@ -137,6 +137,17 @@ func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent, 
 	}
 	for _, delivery := range deliveries {
 		notificationID := uuid.NewString()
+		var alreadyDelivered bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM notification_deliveries
+				WHERE subscription_id = $1 AND recommendation_id = $2
+			)`, delivery.subscription.ID, event.RecommendationID).Scan(&alreadyDelivered); err != nil {
+			return err
+		}
+		if alreadyDelivered {
+			continue
+		}
 		payload, err := json.Marshal(map[string]any{
 			"title": delivery.title,
 			"body":  delivery.body,
@@ -150,7 +161,31 @@ func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent, 
 		}
 		status, err := provider.Send(ctx, delivery.subscription, payload)
 		if err != nil {
-			return err
+			if IsInactiveSubscriptionError(err) {
+				if _, updateErr := tx.ExecContext(ctx, `
+					UPDATE notification_subscriptions
+					SET active = false, updated_at = now()
+					WHERE subscription_id = $1`, delivery.subscription.ID); updateErr != nil {
+					return updateErr
+				}
+			}
+			result, insertErr := tx.ExecContext(ctx, `
+				INSERT INTO notification_deliveries (notification_id, subscription_id, user_id, journey_id, recommendation_id, status, attempts)
+				VALUES ($1, $2, $3, $4, $5, 'failed', 1)
+				ON CONFLICT (subscription_id, recommendation_id) DO NOTHING`, notificationID, delivery.subscription.ID, userID, event.JourneyID, event.RecommendationID)
+			if insertErr != nil {
+				return insertErr
+			}
+			inserted, rowsErr := result.RowsAffected()
+			if rowsErr != nil {
+				return rowsErr
+			}
+			if inserted > 0 {
+				if err := enqueueNotificationEvent(ctx, tx, event, "notification.failed.v1", notificationID, "push", "webpush", PushFailureCode(err)); err != nil {
+					return err
+				}
+			}
+			continue
 		}
 		channel, providerName := "push", "webpush"
 		if status == "delivered" {
@@ -175,26 +210,38 @@ func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent, 
 			eventTypes = append(eventTypes, "notification.delivered.v1")
 		}
 		for _, eventType := range eventTypes {
-			eventID := uuid.NewString()
-			payload, err := json.Marshal(map[string]any{
-				"event_id":          eventID,
-				"event_type":        eventType,
-				"schema_version":    1,
-				"occurred_at":       time.Now().UTC().Format(time.RFC3339Nano),
-				"producer":          "notification-worker",
-				"trace_id":          event.TraceID,
-				"journey_id":        event.JourneyID,
-				"recommendation_id": event.RecommendationID,
-				"user_id_hash":      event.UserIDHash,
-				"payload":           map[string]string{"notification_id": notificationID, "channel": channel, "provider": providerName},
-			})
-			if err != nil {
-				return err
-			}
-			if err := outbox.Enqueue(ctx, tx, outbox.Event{ID: eventID, Topic: eventType, Key: event.UserIDHash, Payload: payload}); err != nil {
+			if err := enqueueNotificationEvent(ctx, tx, event, eventType, notificationID, channel, providerName, ""); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func enqueueNotificationEvent(ctx context.Context, tx *sql.Tx, source RecommendationCreatedEvent, eventType, notificationID, channel, providerName, failureCode string) error {
+	eventID := uuid.NewString()
+	eventPayload := map[string]string{
+		"notification_id": notificationID,
+		"channel":         channel,
+		"provider":        providerName,
+	}
+	if failureCode != "" {
+		eventPayload["failure_code"] = failureCode
+	}
+	payload, err := json.Marshal(map[string]any{
+		"event_id":          eventID,
+		"event_type":        eventType,
+		"schema_version":    1,
+		"occurred_at":       time.Now().UTC().Format(time.RFC3339Nano),
+		"producer":          "notification-worker",
+		"trace_id":          source.TraceID,
+		"journey_id":        source.JourneyID,
+		"recommendation_id": source.RecommendationID,
+		"user_id_hash":      source.UserIDHash,
+		"payload":           eventPayload,
+	})
+	if err != nil {
+		return err
+	}
+	return outbox.Enqueue(ctx, tx, outbox.Event{ID: eventID, Topic: eventType, Key: source.UserIDHash, Payload: payload})
 }

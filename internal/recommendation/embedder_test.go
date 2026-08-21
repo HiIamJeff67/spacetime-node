@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -35,5 +36,30 @@ func TestHTTPEmbedderUsesCanonicalDocument(t *testing.T) {
 	}
 	if len(vector) != 3 || vector[0] != 0.1 || vector[2] != 0.3 {
 		t.Fatalf("unexpected vector: %v", vector)
+	}
+}
+
+func TestProfileEmbeddingIsVersionedAndIncludesFeedbackWeights(t *testing.T) {
+	var captured OfferDocument
+	service := NewRecommendationService(nil, nil, nil).
+		WithEmbeddingModel("semantic-demo-v2").
+		WithQueryEmbedder(func(_ context.Context, document OfferDocument) ([]float32, error) {
+			captured = document
+			return []float32{0.1, 0.2}, nil
+		})
+	event := EntryEvent{UserIDHash: DemoUserIDHash}
+	event.Payload.StationID = "R04"
+	event.Payload.LineID = "R"
+	event.Payload.PositionID = "R04-1"
+
+	embedding, err := service.ProfileEmbedding(context.Background(), event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if embedding.EmbeddingModel != "semantic-demo-v2" || embedding.ContentVersion == "" || len(embedding.Vector) != 2 {
+		t.Fatalf("unexpected profile embedding metadata: %+v", embedding)
+	}
+	if captured.Title != "user profile" || !strings.Contains(captured.Description, "categories=coffee,lunch") {
+		t.Fatalf("profile document omitted preferences: %+v", captured)
 	}
 }
