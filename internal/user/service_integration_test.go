@@ -76,6 +76,7 @@ func resetDatabase(t *testing.T, db *sql.DB) {
 		"000007_notification_subscriptions.sql",
 		"000008_offer_category.sql",
 		"000009_user_preference_weights.sql",
+		"000010_demo_station_catalog.sql",
 	} {
 		contents, err := os.ReadFile(filepath.Join("..", "..", "migrations", "postgres", name))
 		if err != nil {

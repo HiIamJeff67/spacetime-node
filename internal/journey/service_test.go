@@ -26,3 +26,15 @@ func TestValidRecommendationEventType(t *testing.T) {
 		}
 	}
 }
+
+func TestRecommendationFeedbackEventIDIsDeterministic(t *testing.T) {
+	first := recommendationFeedbackEventID("sha256:user", "journey-1", "recommendation-1", "offer-1", recommendationClickedTopic)
+	second := recommendationFeedbackEventID("sha256:user", "journey-1", "recommendation-1", "offer-1", recommendationClickedTopic)
+	otherJourney := recommendationFeedbackEventID("sha256:user", "journey-2", "recommendation-1", "offer-1", recommendationClickedTopic)
+	if first != second {
+		t.Fatalf("expected the same event identity for a replay: %q != %q", first, second)
+	}
+	if first == otherJourney {
+		t.Fatal("expected separate journeys to produce separate event identities")
+	}
+}

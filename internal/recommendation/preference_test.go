@@ -37,6 +37,9 @@ func TestFeedbackDelta(t *testing.T) {
 	if weight, _, dismisses, _ := feedbackDelta(RecommendationDismissedTopic); weight >= 0 || dismisses != 1 {
 		t.Fatalf("unexpected dismiss delta: %v %d", weight, dismisses)
 	}
+	if weight, _, _, redemptions := feedbackDelta(RedemptionSucceededTopic); weight != 1.5 || redemptions != 1 {
+		t.Fatalf("unexpected redemption delta: %v %d", weight, redemptions)
+	}
 }
 
 func TestPreferenceCacheHitAndExpiry(t *testing.T) {

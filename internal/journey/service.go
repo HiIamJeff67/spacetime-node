@@ -203,7 +203,6 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 	if traceID == "" {
 		traceID = uuid.NewString()
 	}
-	eventID := uuid.NewString()
 	journeyID := request.GetRequestContext().GetJourneyId()
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -231,6 +230,26 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 	}
 	if request.GetOfferId() != "" && request.GetOfferId() != offerID {
 		return nil, v1.ErrorInvalidRequest("offer_id does not match recommendation")
+	}
+	eventID := recommendationFeedbackEventID(
+		request.GetUserIdHash(), journeyID, request.GetRecommendationId(), offerID, request.GetEventType(),
+	)
+	claim, err := tx.ExecContext(ctx, `
+		INSERT INTO processed_events (consumer_name, event_id)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`, "gateway-recommendation-feedback", eventID)
+	if err != nil {
+		return nil, err
+	}
+	claimed, err := claim.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if claimed == 0 {
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return &v1.RecordRecommendationEventResponse{EventId: eventID}, nil
 	}
 	if err := recommendation.ApplyPreferenceFeedback(ctx, tx, request.GetUserIdHash(), offerID, request.GetEventType()); err != nil {
 		return nil, err
@@ -272,6 +291,13 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 		return nil, err
 	}
 	return &v1.RecordRecommendationEventResponse{EventId: eventID}, nil
+}
+
+func recommendationFeedbackEventID(userIDHash, journeyID, recommendationID, offerID, eventType string) string {
+	identity := strings.Join([]string{
+		"recommendation-feedback-v1", userIDHash, journeyID, recommendationID, offerID, eventType,
+	}, "\x00")
+	return uuid.NewSHA1(uuid.Nil, []byte(identity)).String()
 }
 
 func validRecommendationEventType(value string) bool {

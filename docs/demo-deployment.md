@@ -63,6 +63,10 @@ The browser should send `recommendation.impressed.v1`,
 bounded category weights for later recommendations. Failures from
 these best-effort telemetry calls must not block the user flow.
 
+Feedback event replays are idempotent per user, journey, recommendation, offer,
+and event type, so browser retries do not repeatedly increase or decrease a
+category weight.
+
 ## 4. Verification checklist
 
 - Backend `/healthz` returns `ok`.
