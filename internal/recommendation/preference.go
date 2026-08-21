@@ -18,14 +18,15 @@ const (
 var ErrInvalidUserIDHash = errors.New("invalid user id hash")
 
 type Preference struct {
-	UserIDHash           string    `json:"user_id_hash"`
-	PredictedDestination string    `json:"predicted_destination"`
-	PreferredCategories  []string  `json:"preferred_categories"`
-	BudgetMinPoints      int64     `json:"budget_min_points"`
-	BudgetMaxPoints      int64     `json:"budget_max_points"`
-	GeneratedAt          time.Time `json:"generated_at"`
-	ExpiresAt            time.Time `json:"expires_at"`
-	Source               string    `json:"-"`
+	UserIDHash           string             `json:"user_id_hash"`
+	PredictedDestination string             `json:"predicted_destination"`
+	PreferredCategories  []string           `json:"preferred_categories"`
+	CategoryWeights      map[string]float64 `json:"category_weights,omitempty"`
+	BudgetMinPoints      int64              `json:"budget_min_points"`
+	BudgetMaxPoints      int64              `json:"budget_max_points"`
+	GeneratedAt          time.Time          `json:"generated_at"`
+	ExpiresAt            time.Time          `json:"expires_at"`
+	Source               string             `json:"-"`
 }
 
 type PreferenceStore struct {
@@ -81,6 +82,9 @@ func (s *PreferenceStore) Get(ctx context.Context, userIDHash string) (Preferenc
 		if err == nil {
 			var preference Preference
 			if json.Unmarshal(encoded, &preference) == nil && preference.UserIDHash == userIDHash {
+				if weights, weightErr := LoadPreferenceWeights(ctx, s.db, userIDHash); weightErr == nil {
+					preference.CategoryWeights = weights
+				}
 				preference.Source = "redis"
 				return preference, nil
 			}
@@ -107,11 +111,16 @@ func (s *PreferenceStore) Get(ctx context.Context, userIDHash string) (Preferenc
 					UserIDHash:           userIDHash,
 					PredictedDestination: predictedDestination,
 					PreferredCategories:  categories,
+					CategoryWeights:      map[string]float64{},
 					BudgetMinPoints:      budgetMin,
 					BudgetMaxPoints:      budgetMax,
 					GeneratedAt:          now,
 					ExpiresAt:            now.Add(s.ttl),
 					Source:               "postgres",
+				}
+				preference.CategoryWeights, err = LoadPreferenceWeights(ctx, s.db, userIDHash)
+				if err != nil {
+					return Preference{}, err
 				}
 				if encoded, err := json.Marshal(preference); err == nil && s.client != nil {
 					_ = s.client.Set(ctx, preferenceKey(userIDHash), encoded, s.ttl).Err()

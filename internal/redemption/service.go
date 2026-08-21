@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"spacetime-node/internal/platform/outbox"
+	"spacetime-node/internal/recommendation"
 )
 
 var (
@@ -162,6 +163,9 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (Redemption
 		INSERT INTO points_ledger (user_id, redemption_id, delta, balance_after, reason)
 		VALUES ($1, $2, $3, $4, $5)`,
 		userID, redemption.ID, -redemption.PointsCost, newBalance, "redemption"); err != nil {
+		return Redemption{}, err
+	}
+	if err := recommendation.ApplyPreferenceFeedback(ctx, tx, request.UserIDHash, redemption.OfferID, recommendation.RedemptionSucceededTopic); err != nil {
 		return Redemption{}, err
 	}
 	if err := enqueueSucceededEvent(ctx, tx, request, redemption); err != nil {

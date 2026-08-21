@@ -10,6 +10,7 @@
 | `notification.delivered.v1` | notification mock | analytics-consumer | `user_id_hash` |
 | `recommendation.impressed.v1` | demo client | analytics-consumer | `user_id_hash` |
 | `recommendation.clicked.v1` | demo client | analytics-consumer | `user_id_hash` |
+| `recommendation.dismissed.v1` | demo client | analytics-consumer | `user_id_hash` |
 | `redemption.succeeded.v1` | redemption-service outbox | analytics-consumer | `user_id_hash` |
 | `merchant.verified.v1` | merchant verification mock | analytics-consumer | `journey_id` |
 | `visit.attributed.v1` | attribution worker / demo | analytics-consumer | `journey_id` |

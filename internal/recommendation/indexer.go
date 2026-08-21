@@ -86,7 +86,7 @@ func (i *OfferIndexer) reindexActiveOffers(ctx context.Context) error {
 		return ErrEmbeddingUnavailable
 	}
 	rows, err := i.db.QueryContext(ctx, `
-		SELECT offer_id, title, description, station_id, content_version
+		SELECT offer_id, title, description, station_id, category, content_version
 		FROM offers
 		WHERE is_active = true`)
 	if err != nil {
@@ -97,7 +97,7 @@ func (i *OfferIndexer) reindexActiveOffers(ctx context.Context) error {
 	points := make([]QdrantPoint, 0)
 	for rows.Next() {
 		var document OfferDocument
-		if err := rows.Scan(&document.OfferID, &document.Title, &document.Description, &document.StationID, &document.ContentVersion); err != nil {
+		if err := rows.Scan(&document.OfferID, &document.Title, &document.Description, &document.StationID, &document.Category, &document.ContentVersion); err != nil {
 			return err
 		}
 		vector, err := i.embedder(ctx, document)
@@ -110,6 +110,7 @@ func (i *OfferIndexer) reindexActiveOffers(ctx context.Context) error {
 			Payload: map[string]any{
 				"offer_id":        document.OfferID,
 				"station_ids":     []string{document.StationID},
+				"category":        document.Category,
 				"content_version": document.ContentVersion,
 				"embedding_model": i.embeddingModel,
 			},
@@ -194,7 +195,7 @@ func (i *OfferIndexer) loadOffer(ctx context.Context, document *OfferDocument) e
 		return ErrInvalidOfferChangedEvent
 	}
 	return i.db.QueryRowContext(ctx, `
-		SELECT offer_id, title, description, station_id, content_version
+		SELECT offer_id, title, description, station_id, category, content_version
 		FROM offers WHERE offer_id = $1`, document.OfferID).Scan(
-		&document.OfferID, &document.Title, &document.Description, &document.StationID, &document.ContentVersion)
+		&document.OfferID, &document.Title, &document.Description, &document.StationID, &document.Category, &document.ContentVersion)
 }

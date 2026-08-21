@@ -20,6 +20,7 @@ var Topics = []string{
 	"notification.delivered.v1",
 	"recommendation.impressed.v1",
 	"recommendation.clicked.v1",
+	"recommendation.dismissed.v1",
 	"redemption.succeeded.v1",
 	"merchant.verified.v1",
 	"visit.attributed.v1",

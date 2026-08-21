@@ -159,7 +159,7 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 		args = append(args, id)
 	}
 	query := fmt.Sprintf(`
-		SELECT o.offer_id, o.title, o.description, o.points_cost, o.station_id,
+		SELECT o.offer_id, o.title, o.description, o.category, o.points_cost, o.station_id,
 		       o.is_active, o.starts_at, o.ends_at, i.available_quantity
 		FROM offers o
 		JOIN inventory i ON i.offer_id = o.offer_id
@@ -169,16 +169,16 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 		return Recommendation{}, err
 	}
 	type offer struct {
-		ID, Title, Description, StationID string
-		PointsCost                        int64
-		Active                            bool
-		StartsAt, EndsAt                  time.Time
-		AvailableQuantity                 int
+		ID, Title, Description, Category, StationID string
+		PointsCost                                  int64
+		Active                                      bool
+		StartsAt, EndsAt                            time.Time
+		AvailableQuantity                           int
 	}
 	offers := make(map[string]offer, len(ids))
 	for rows.Next() {
 		var item offer
-		if err := rows.Scan(&item.ID, &item.Title, &item.Description, &item.PointsCost, &item.StationID, &item.Active, &item.StartsAt, &item.EndsAt, &item.AvailableQuantity); err != nil {
+		if err := rows.Scan(&item.ID, &item.Title, &item.Description, &item.Category, &item.PointsCost, &item.StationID, &item.Active, &item.StartsAt, &item.EndsAt, &item.AvailableQuantity); err != nil {
 			rows.Close()
 			return Recommendation{}, err
 		}
@@ -224,13 +224,16 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 			summary.RuleScore += 0.05
 			summary.Reasons = append(summary.Reasons, "inventory_urgency")
 		}
-		// ponytail: derive category from offer text until offers gain a normalized category column.
-		offerText := strings.ToLower(item.Title + " " + item.Description)
-		for _, category := range preference.PreferredCategories {
-			if strings.Contains(offerText, strings.ToLower(category)) {
-				summary.RuleScore += 0.10
-				summary.Reasons = append(summary.Reasons, "preferred_category")
-				break
+		if matchesPreferredCategory(item.Category, preference.PreferredCategories) {
+			summary.RuleScore += 0.10
+			summary.Reasons = append(summary.Reasons, "preferred_category")
+		}
+		if weight := preference.CategoryWeights[strings.ToLower(strings.TrimSpace(item.Category))]; weight != 0 {
+			summary.RuleScore += weight * 0.05
+			if weight > 0 {
+				summary.Reasons = append(summary.Reasons, "learned_category_preference")
+			} else {
+				summary.Reasons = append(summary.Reasons, "learned_category_avoidance")
 			}
 		}
 		summary.Eligible = len(summary.Reasons) == 0 || !containsRejection(summary.Reasons)
@@ -307,6 +310,19 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 		return Recommendation{}, err
 	}
 	return recommendation, nil
+}
+
+func matchesPreferredCategory(offerCategory string, preferredCategories []string) bool {
+	offerCategory = strings.ToLower(strings.TrimSpace(offerCategory))
+	if offerCategory == "" {
+		return false
+	}
+	for _, preferred := range preferredCategories {
+		if offerCategory == strings.ToLower(strings.TrimSpace(preferred)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *RecommendationService) GetLatest(ctx context.Context, journeyID string) (Recommendation, error) {

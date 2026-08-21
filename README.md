@@ -85,6 +85,9 @@ KAFKA_BROKERS=localhost:29092 go run ./cmd/analytics-demo \
 
 腳本會建立進站事件、等待非同步推薦、兌換推薦優惠並呼叫商家核銷 mock；可用 `GATEWAY_URL`、`REDEMPTION_URL`、`STATION_ID`、`MAX_ATTEMPTS` 等環境變數覆寫展示參數。
 
+Web Demo 完成 onboarding 後會以第一個選取站點建立 entry event；推薦服務再以優惠的結構化
+`category` 與使用者偏好比對，不依賴中文標題或描述文字碰巧相符。點擊、標記沒興趣與兌換會累積分類權重，影響下一次排序並留下可解釋 reason；未選站時才使用 R04 作為展示 fallback。
+
 SCRUM-13 的完整交付 runbook、驗收證據與 failure boundary 請見 [`docs/delivery.md`](docs/delivery.md)。
 
 公開 Demo 的 Google Cloud VM、Cloudflare Pages、CORS 與 Quick Tunnel／tmux

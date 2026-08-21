@@ -12,12 +12,14 @@ import (
 
 	v1 "spacetime-node/api/proto/spacetime_node/v1"
 	"spacetime-node/internal/platform/outbox"
+	"spacetime-node/internal/recommendation"
 )
 
 const (
 	entryTopic                   = "journey.entered.v1"
 	recommendationImpressedTopic = "recommendation.impressed.v1"
 	recommendationClickedTopic   = "recommendation.clicked.v1"
+	recommendationDismissedTopic = recommendation.RecommendationDismissedTopic
 )
 
 type Service struct {
@@ -184,7 +186,7 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 		return nil, v1.ErrorInvalidRequest("user_id_hash must be a sha256 hash")
 	}
 	if !validRecommendationEventType(request.GetEventType()) {
-		return nil, v1.ErrorInvalidRequest("event_type must be recommendation.impressed.v1 or recommendation.clicked.v1")
+		return nil, v1.ErrorInvalidRequest("event_type must be recommendation.impressed.v1, recommendation.clicked.v1, or recommendation.dismissed.v1")
 	}
 	if request.GetRequestContext() == nil || request.GetRequestContext().GetJourneyId() == "" {
 		return nil, v1.ErrorInvalidRequest("request_context.journey_id is required")
@@ -230,6 +232,9 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 	if request.GetOfferId() != "" && request.GetOfferId() != offerID {
 		return nil, v1.ErrorInvalidRequest("offer_id does not match recommendation")
 	}
+	if err := recommendation.ApplyPreferenceFeedback(ctx, tx, request.GetUserIdHash(), offerID, request.GetEventType()); err != nil {
+		return nil, err
+	}
 
 	payload, err := json.Marshal(struct {
 		OfferID string `json:"offer_id"`
@@ -270,7 +275,7 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 }
 
 func validRecommendationEventType(value string) bool {
-	return value == recommendationImpressedTopic || value == recommendationClickedTopic
+	return value == recommendationImpressedTopic || value == recommendationClickedTopic || value == recommendationDismissedTopic
 }
 
 func validUserIDHash(value string) bool {

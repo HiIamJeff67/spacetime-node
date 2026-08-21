@@ -65,7 +65,7 @@ func TestOfferIndexerBootstrapsAndUpserts(t *testing.T) {
 	if err := indexer.HandleOfferChanged(context.Background(), event); err != nil {
 		t.Fatal(err)
 	}
-	if upsert.ID != qdrantPointID("offer-coffee-xinyi") || len(upsert.Vector) != 2 || upsert.Payload["offer_id"] != "offer-coffee-xinyi" || upsert.Payload["embedding_model"] != "demo-embedding-v1" {
+	if upsert.ID != qdrantPointID("offer-coffee-xinyi") || len(upsert.Vector) != 2 || upsert.Payload["offer_id"] != "offer-coffee-xinyi" || upsert.Payload["category"] != "coffee" || upsert.Payload["embedding_model"] != "demo-embedding-v1" {
 		t.Fatalf("unexpected upsert: %+v", upsert)
 	}
 	if err := indexer.HandleOfferChanged(context.Background(), []byte(`{"event_type":"offer.changed.v1","schema_version":1,"payload":{"offer_id":"offer-coffee-xinyi","content_version":3,"change_type":"DELETE"}}`)); err != nil {

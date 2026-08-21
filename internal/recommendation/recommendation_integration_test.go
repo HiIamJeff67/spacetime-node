@@ -42,6 +42,16 @@ func TestRecommendPersistsValidatedOfferAndFallsBackFromInvalidCopy(t *testing.T
 	if recommendation.OfferID != "offer-coffee-xinyi" || recommendation.CopySource != "template" || len(recommendation.Candidates) != 2 {
 		t.Fatalf("unexpected recommendation: %+v", recommendation)
 	}
+	var categoryMatched bool
+	for _, reason := range recommendation.Reasons {
+		if reason == "preferred_category" {
+			categoryMatched = true
+			break
+		}
+	}
+	if !categoryMatched {
+		t.Fatalf("structured category match was not recorded: %+v", recommendation.Reasons)
+	}
 	if !copyGeneratorCalled {
 		t.Fatal("copy generator was not called")
 	}
@@ -121,6 +131,9 @@ func resetDatabase(t *testing.T, db *sql.DB) {
 		"000004_recommendation_candidate_summary.sql",
 		"000005_recommendation_latency.sql",
 		"000006_user_preferences.sql",
+		"000007_notification_subscriptions.sql",
+		"000008_offer_category.sql",
+		"000009_user_preference_weights.sql",
 	} {
 		contents, err := os.ReadFile(filepath.Join("..", "..", "migrations", "postgres", name))
 		if err != nil {

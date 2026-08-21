@@ -21,6 +21,24 @@ func TestDemoPreferenceFallback(t *testing.T) {
 	}
 }
 
+func TestMatchesPreferredCategoryUsesStructuredValues(t *testing.T) {
+	if !matchesPreferredCategory("Coffee", []string{"coffee", "lunch"}) {
+		t.Fatal("expected category match")
+	}
+	if matchesPreferredCategory("coffee", []string{"咖啡"}) {
+		t.Fatal("did not expect translation or substring matching")
+	}
+}
+
+func TestFeedbackDelta(t *testing.T) {
+	if weight, clicks, dismisses, redemptions := feedbackDelta("recommendation.clicked.v1"); weight != 0.5 || clicks != 1 || dismisses != 0 || redemptions != 0 {
+		t.Fatalf("unexpected click delta: %v %d %d %d", weight, clicks, dismisses, redemptions)
+	}
+	if weight, _, dismisses, _ := feedbackDelta(RecommendationDismissedTopic); weight >= 0 || dismisses != 1 {
+		t.Fatalf("unexpected dismiss delta: %v %d", weight, dismisses)
+	}
+}
+
 func TestPreferenceCacheHitAndExpiry(t *testing.T) {
 	addr := os.Getenv("TEST_REDIS_ADDR")
 	if addr == "" {

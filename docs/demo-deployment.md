@@ -57,8 +57,10 @@ directory. After deployment, open the Pages URL and complete:
 onboarding → entry → recommendation → offer click → redemption
 ```
 
-The browser should send `recommendation.impressed.v1` and
-`recommendation.clicked.v1` to `/v1/recommendation-events`; failures from
+The browser should send `recommendation.impressed.v1`,
+`recommendation.clicked.v1`, and `recommendation.dismissed.v1` to
+`/v1/recommendation-events`; click, dismissal, and redemption signals update
+bounded category weights for later recommendations. Failures from
 these best-effort telemetry calls must not block the user flow.
 
 ## 4. Verification checklist

@@ -15,7 +15,7 @@ func TestValidUserIDHash(t *testing.T) {
 }
 
 func TestValidRecommendationEventType(t *testing.T) {
-	for _, eventType := range []string{recommendationImpressedTopic, recommendationClickedTopic} {
+	for _, eventType := range []string{recommendationImpressedTopic, recommendationClickedTopic, recommendationDismissedTopic} {
 		if !validRecommendationEventType(eventType) {
 			t.Fatalf("expected valid recommendation event type: %q", eventType)
 		}

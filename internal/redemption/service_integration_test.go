@@ -211,7 +211,7 @@ func resetDatabase(t *testing.T, db *sql.DB) {
 	if _, err := db.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"000001_core.sql", "000002_demo_seed.sql"} {
+	for _, name := range []string{"000001_core.sql", "000002_demo_seed.sql", "000008_offer_category.sql", "000009_user_preference_weights.sql"} {
 		contents, err := os.ReadFile(filepath.Join("..", "..", "migrations", "postgres", name))
 		if err != nil {
 			t.Fatal(err)
