@@ -37,12 +37,22 @@ func main() {
 		redisClient = redis.NewClient(&redis.Options{Addr: dependencies.RedisAddr})
 		defer redisClient.Close()
 	}
+	embedder, err := recommendation.NewConfiguredEmbedder(
+		dependencies.EmbeddingMode,
+		dependencies.EmbeddingBaseURL,
+		dependencies.EmbeddingModel,
+		dependencies.EmbeddingDimension,
+		nil,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 	qdrant := recommendation.NewQdrantClient(dependencies.QdrantURL, nil)
 	service := recommendation.NewRecommendationService(
 		db,
 		qdrant,
 		recommendation.NewPreferenceStore(redisClient, recommendation.PreferenceTTL).WithDB(db),
-	)
+	).WithQueryEmbedder(embedder).WithEmbeddingCollection(dependencies.EmbeddingCollection)
 	if dependencies.LLMMode == "provider" && dependencies.LLMBaseURL != "" && dependencies.LLMModel != "" {
 		service.WithCopyGenerator(recommendation.NewHTTPCopyGenerator(dependencies.LLMBaseURL, dependencies.LLMModel, nil), recommendation.DefaultCopyTimeout)
 	}

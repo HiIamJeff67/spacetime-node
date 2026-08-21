@@ -61,18 +61,58 @@ type RecommendationService struct {
 	qdrant        *QdrantClient
 	preferences   *PreferenceStore
 	collection    string
+	queryEmbedder Embedder
 	copyGenerator CopyGenerator
 	copyTimeout   time.Duration
 }
 
 func NewRecommendationService(db *sql.DB, qdrant *QdrantClient, preferences *PreferenceStore) *RecommendationService {
 	return &RecommendationService{
-		db:          db,
-		qdrant:      qdrant,
-		preferences: preferences,
-		collection:  "offer_embeddings_v1",
-		copyTimeout: DefaultCopyTimeout,
+		db:            db,
+		qdrant:        qdrant,
+		preferences:   preferences,
+		collection:    "offer_embeddings_v1",
+		queryEmbedder: HashEmbedder(DefaultEmbeddingDimension),
+		copyTimeout:   DefaultCopyTimeout,
 	}
+}
+
+func (s *RecommendationService) WithQueryEmbedder(embedder Embedder) *RecommendationService {
+	if s != nil && embedder != nil {
+		s.queryEmbedder = embedder
+	}
+	return s
+}
+
+func (s *RecommendationService) WithEmbeddingCollection(collection string) *RecommendationService {
+	if s != nil && collection != "" {
+		s.collection = collection
+	}
+	return s
+}
+
+func (s *RecommendationService) QueryVector(ctx context.Context, event EntryEvent) ([]float32, error) {
+	if s == nil || s.queryEmbedder == nil || event.UserIDHash == "" || event.Payload.StationID == "" {
+		return nil, ErrEmbeddingUnavailable
+	}
+	preference := DemoPreference(event.UserIDHash)
+	if s.preferences != nil {
+		var err error
+		preference, err = s.preferences.Get(ctx, event.UserIDHash)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s.queryEmbedder(ctx, OfferDocument{
+		Title: "station " + event.Payload.StationID,
+		Description: strings.Join([]string{
+			event.Payload.LineID,
+			event.Payload.PositionID,
+			"budget",
+			fmt.Sprintf("%d-%d points", preference.BudgetMinPoints, preference.BudgetMaxPoints),
+		}, " "),
+		Category: strings.Join(preference.PreferredCategories, ", "),
+	})
 }
 
 func (s *RecommendationService) WithCopyGenerator(generator CopyGenerator, timeout time.Duration) *RecommendationService {

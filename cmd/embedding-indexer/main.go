@@ -17,8 +17,6 @@ import (
 	"spacetime-node/internal/recommendation"
 )
 
-const embeddingDimension = 32
-
 var version = "dev"
 
 func main() {
@@ -43,13 +41,23 @@ func main() {
 		defer cancel()
 		_ = shutdownTelemetry(shutdownCtx)
 	}()
+	embedder, err := recommendation.NewConfiguredEmbedder(
+		dependencies.EmbeddingMode,
+		dependencies.EmbeddingBaseURL,
+		dependencies.EmbeddingModel,
+		dependencies.EmbeddingDimension,
+		nil,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 	indexer := recommendation.NewOfferIndexer(
 		db,
 		recommendation.NewQdrantClient(dependencies.QdrantURL, nil),
-		recommendation.HashEmbedder(embeddingDimension),
-		"demo-hash-v1",
-	)
-	if err := indexer.Bootstrap(ctx, embeddingDimension); err != nil {
+		embedder,
+		dependencies.EmbeddingModel,
+	).WithCollection(dependencies.EmbeddingCollection)
+	if err := indexer.Bootstrap(ctx, dependencies.EmbeddingDimension); err != nil {
 		log.Fatal(err)
 	}
 

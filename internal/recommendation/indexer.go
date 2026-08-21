@@ -13,7 +13,10 @@ var (
 	ErrEmbeddingUnavailable     = errors.New("embedding unavailable")
 )
 
-const OfferEmbeddingCollection = "offer_embeddings_v1"
+const (
+	OfferEmbeddingCollection  = "offer_embeddings_v1"
+	DefaultEmbeddingDimension = 32
+)
 
 type OfferDocument struct {
 	OfferID        string
@@ -32,7 +35,7 @@ func HashEmbedder(dimension int) Embedder {
 			return nil, ErrEmbeddingUnavailable
 		}
 		// ponytail: deterministic local vector keeps the demo self-contained; replace with a model adapter when semantic quality is measured.
-		digest := sha256.Sum256([]byte(document.Title + "\n" + document.Description))
+		digest := sha256.Sum256([]byte(CanonicalDocument(document)))
 		vector := make([]float32, dimension)
 		for index := range vector {
 			vector[index] = float32(digest[index%len(digest)])/127.5 - 1
@@ -57,6 +60,13 @@ func NewOfferIndexer(db *sql.DB, qdrant *QdrantClient, embedder Embedder, embedd
 		collection:     OfferEmbeddingCollection,
 		embeddingModel: embeddingModel,
 	}
+}
+
+func (i *OfferIndexer) WithCollection(collection string) *OfferIndexer {
+	if i != nil && collection != "" {
+		i.collection = collection
+	}
+	return i
 }
 
 func (i *OfferIndexer) Bootstrap(ctx context.Context, dimension int) error {

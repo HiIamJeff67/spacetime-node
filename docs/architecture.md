@@ -33,7 +33,7 @@
 
 ## 目前實作狀態（2026-08-13）
 
-目前不是只有基礎設施空殼：進站 fixture、推薦、兌換、核銷 mock、分析與可觀測性已形成可執行的垂直切片。Web Push 與 Beacon resolver 也已完成 deterministic mock 垂直切片；真實手機推播供應商仍是後續功能。
+目前不是只有基礎設施空殼：進站 fixture、推薦、兌換、核銷 mock、分析與可觀測性已形成可執行的垂直切片。Web Push 與 Beacon resolver 同時保留 deterministic mock 與可選的真實 provider adapter。
 
 | 能力 | 狀態 | 現況與邊界 |
 |---|---|---|
@@ -45,8 +45,8 @@
 | Runtime readiness | 已完成基線 | `/healthz`、dependency-aware `/readyz`、`/version` 語義分離；Kratos graceful shutdown 有 10 秒上限 |
 | Beacon 進站解析 | 已完成 fixture/provider MVP | `mobility-service` 提供 `/v1/mobility/beacon/resolve`；以 SID+LID normalization、短期記憶體 cache、sanitized fixture 與 provider timeout fallback 建立位置 context；Gateway 仍可選擇使用此 API，尚未強制綁定真實 Beacon |
 | 使用者常用站／消費偏好 | 已完成 demo API | PostgreSQL 保存 profile／偏好，Gateway 提供 `/v1/users/me` 與 `/v1/users/me/preferences`；Redis 只保存可重建摘要 |
-| 手機推播 | 已完成 mock MVP | Gateway 提供訂閱註冊／撤銷；PostgreSQL 保存 subscription、worker 依使用者 timezone／時段篩選 `recommendation.created.v1`，並由 deterministic provider 發出 sent/delivered；VAPID／FCM/APNs 尚未接入 |
-| Embedding | 已完成管線、尚未使用語意模型 | offer indexer、Qdrant collection 與查詢流程可運作；目前 `demo-hash-v1` 只驗證資料流與責任邊界 |
+| 手機推播 | 已完成 mock + Web Push MVP | Gateway 提供訂閱註冊／撤銷；PostgreSQL 保存 subscription、worker 依使用者 timezone／時段篩選 `recommendation.created.v1`，可用 VAPID provider 發送加密瀏覽器通知；push service 接受後記錄 sent，mock 才產生 delivered |
+| Embedding | 已完成可切換 adapter | 預設 `demo-hash-v1` 保持 demo 自包含；設定 `EMBEDDING_MODE=http` 可讓 offer 與「偏好＋站點情境」共用 OpenAI-compatible semantic embedding，並切換到獨立 Qdrant collection |
 
 ```mermaid
 flowchart LR
@@ -246,7 +246,7 @@ HTTP 是 demo 與外部呼叫入口；服務內部需要同步協作時使用 gR
 
 同一個 `user_id_hash` 會寫入同一 partition，確保同一使用者的進站、推薦與兌換順序在該 partition 內一致。不同 consumer group 可獨立消費相同事件：推薦、分析與可觀測性不互相阻塞。
 
-### 6.4 Web Push mock 邊界
+### 6.4 Web Push provider 邊界
 
 ```mermaid
 flowchart LR
@@ -255,13 +255,16 @@ flowchart LR
   Recommendation[Recommendation service] -->|recommendation.created.v1| Kafka[(Kafka)]
   Kafka --> Worker[Notification worker]
   Worker -->|timezone + local window + active subscription| PG
-  Worker --> Mock[Deterministic mock provider]
-  Mock -->|notification.sent.v1| Kafka
-  Mock -->|notification.delivered.v1| Kafka
+  Worker --> Provider{Provider}
+  Provider -->|mock| Mock[Deterministic mock]
+  Provider -->|webpush + VAPID| PushService[Browser Push Service]
+  Mock -->|notification.sent.v1 + delivered| Kafka
+  PushService -->|notification.sent.v1| Kafka
+  PushService --> Browser[Service worker]
   Kafka --> Analytics[Analytics consumer]
 ```
 
-前端目前註冊的是 `https://demo.invalid/...` synthetic subscription，讓跨裝置 demo 可以驗證 API、時段 eligibility、去重與 analytics event，而不需要憑證或真實裝置 token。撤銷會將 subscription 標記為 inactive；worker 不會讀取或寫入 raw device token 到事件、log 或 trace。未來接 VAPID／FCM／APNs 時只替換 provider adapter，保留上述事件契約。
+前端有 `VITE_VAPID_PUBLIC_KEY` 時會透過 `PushManager.subscribe()` 註冊真實 browser subscription，service worker 接收 push 並顯示通知；未設定時才使用 `https://demo.invalid/...` synthetic subscription。Backend 以 `NOTIFICATION_PROVIDER=webpush`、VAPID subject/public/private key 啟用加密發送，預設仍是 mock。撤銷會將 subscription 標記為 inactive；worker 不會把 raw device token 寫入事件、log 或 trace。Web Push provider 只能確認 push service 接受，因此 `notification.delivered.v1` 仍保留給 deterministic mock 或未來的 client receipt。
 
 ## 7. 資料設計
 
@@ -318,12 +321,12 @@ Qdrant collection `offer_embeddings_v1` 以穩定映射後的 point UUID 保存�
 
 - `embedding-indexer` 啟動時建立 collection 與 station/category/version payload index，並 bootstrap PostgreSQL 中的 active offers。
 - `offer.changed.v1` 的 UPSERT／DELETE 只有在 Qdrant 成功後才 commit Kafka offset。
-- `demo-hash-v1` 以 SHA-256 將 offer title + description 轉成固定 32 維向量；推薦 query 則以 station + line + position 產生同維度向量。
+- `demo-hash-v1` 以 SHA-256 將 canonical offer document 轉成固定 32 維向量；推薦 query 則以偏好 category、預算與 station context 產生同維度向量。
 - 這個 hash **不是語意 embedding**，只用來驗證事件、重建索引、Qdrant filter/search、候選回查與失敗處理能端對端運作。
 
-#### 正式語意 embedding 預計怎麼做
+#### 語意 embedding adapter
 
-常用站點、推播時段、點數預算與明確 category 是結構化條件，應保存在 PostgreSQL，並以 filter／rule score 使用；第一版不建立 user vector，也不把敏感位置偏好寫進 Qdrant。
+常用站點、推播時段、點數預算與明確 category 是結構化條件，應保存在 PostgreSQL，並以 filter／rule score 使用；profile vector 只在進站查詢時即時產生，不建立持久 user vector，也不把敏感位置偏好寫進 Qdrant。
 
 語意模型只負責把「優惠文件」與「當下查詢文件」投影到同一向量空間：
 
@@ -349,13 +352,13 @@ flowchart LR
     Rank --> Result["Final recommendation + reasons"]
 ```
 
-模型不先綁定特定供應商；選型條件是繁體中文／多語能力、可在 demo 硬體執行、批次索引成本與穩定向量維度。導入時會：
+模型不綁定特定供應商；adapter 使用通用 `/v1/embeddings` contract。預設仍是 hash fallback，啟用語意模式時以同一個 adapter 產生 offer vector 與每次進站的 profile/query vector。選型條件是繁體中文／多語能力、可在 demo 硬體執行、批次索引成本與穩定向量維度。導入時會：
 
 1. 準備一小組「偏好／站點情境 → 預期優惠」標註案例，先量測 Recall@K，而不是只憑模型名稱決定。
-2. 以同一個 `Embedder` adapter 同時產生 offer 與 query vectors，並正規化輸入文字。
+2. 以同一個 `Embedder` adapter 同時產生 offer 與 profile/query vectors，並正規化輸入文字；profile vector 目前在每次進站時即時產生，不另存敏感向量。
 3. 建立新 collection `offer_embeddings_v2`，記錄 `embedding_model` 與 `content_version`，完整重建後和 v1 比較。
 4. 驗證召回品質、延遲與 fallback 後再切換設定；保留 v1 以便回退，不在原 collection 原地混用不同模型。
-5. Embedding service 不可用時，退回 PostgreSQL station/category 候選與既有規則排序，核心推薦仍可運作。
+5. Embedding service 不可用時，保留 `EMBEDDING_MODE=hash` fallback；核心推薦仍可運作，硬性站點／點數／庫存規則不交給模型決定。
 
 ## 8. 一致性與失敗處理
 
@@ -547,11 +550,11 @@ python3 scripts/load-test.py \
 - [x] Qdrant 僅負責候選召回；最終優惠均已回 PostgreSQL 驗證，API/demo 會展示 `candidates[]`。
 - [x] LLM 只能根據已驗證 facts 生成 JSON 文案，失敗時自動使用模板且不影響推薦結果。
 - [x] 兌換交易可防止重複扣點，並使用 transactional outbox 發布事件。
-- [x] Web Push mock 可註冊／撤銷訂閱，依使用者 timezone／local window 篩選，並產生 sent/delivered analytics events。
+- [x] Web Push 可註冊／撤銷訂閱，依使用者 timezone／local window 篩選；mock 產生 sent/delivered，VAPID provider 發送真實瀏覽器通知並產生 sent event。
 - [x] ClickHouse 可查到完整漏斗事件；Grafana 可顯示核心商業 KPI。
 - [x] Tempo trace 可連結關鍵服務與 Kafka 處理；logs 不含 PII。
 - [x] SCRUM-36 壓測腳本與結果可重現；warm local Compose 的 E2E P95 335ms、Qdrant P95 11.69ms、Kafka lag 0。
-- [x] Demo 不依賴真實北捷、POS、FCM/APNs 或 LLM API。
+- [x] Demo 預設不依賴真實北捷、POS、VAPID push 或 LLM API；需要真實 Web Push 時以環境變數啟用。
 
 ## 15. 後續演進方向
 

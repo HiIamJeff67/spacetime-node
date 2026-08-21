@@ -68,6 +68,16 @@ go run ./cmd/redemption
 
 所有 service 的環境變數一律由 `internal/platform/config` 載入；它集中管理 runtime ports 及 Kafka、PostgreSQL、Redis、ClickHouse、Qdrant、LLM 的連線設定，避免各服務各自解析環境變數。
 
+Embedding 預設使用自包含的 `demo-hash-v1`；要切換語意模型，設定 `EMBEDDING_MODE=http`、`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`、實際向量維度與新的 `EMBEDDING_COLLECTION`（例如 `offer_embeddings_v2`）。服務期待 OpenAI-compatible `POST /v1/embeddings`，未設定時不會依賴外部模型服務。
+
+要啟用真實 Web Push，先產生一次 VAPID key pair：
+
+```bash
+go run ./cmd/vapid
+```
+
+將 private key 只放在 backend `.env`，public key 同時放在 backend 的 `VAPID_PUBLIC_KEY` 與 frontend 的 `VITE_VAPID_PUBLIC_KEY`；再將 backend `NOTIFICATION_PROVIDER` 設為 `webpush`。
+
 要補齊本機 demo 的曝光／點擊漏斗，可在 Compose 啟動後執行：
 
 ```bash

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"strings"
 
 	"github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel/attribute"
@@ -15,7 +14,7 @@ import (
 const (
 	EntryTopic                    = "journey.entered.v1"
 	EntryConsumerGroup            = "recommendation-service-v1"
-	RecommendationVectorDimension = 32
+	RecommendationVectorDimension = DefaultEmbeddingDimension
 )
 
 type EntryEvent struct {
@@ -55,7 +54,6 @@ func RunEntryConsumer(ctx context.Context, brokers []string, service *Recommenda
 	if logger == nil {
 		logger = log.Default()
 	}
-	embed := HashEmbedder(RecommendationVectorDimension)
 	for {
 		message, err := reader.FetchMessage(ctx)
 		if err != nil {
@@ -89,10 +87,7 @@ func RunEntryConsumer(ctx context.Context, brokers []string, service *Recommenda
 			span.End()
 			continue
 		}
-		vector, err := embed(eventCtx, OfferDocument{
-			Title:       event.Payload.StationID,
-			Description: strings.TrimSpace(event.Payload.LineID + " " + event.Payload.PositionID),
-		})
+		vector, err := service.QueryVector(eventCtx, event)
 		if err != nil {
 			span.RecordError(err)
 			span.End()

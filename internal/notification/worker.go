@@ -47,8 +47,15 @@ func DecodeRecommendationCreatedEvent(data []byte) (RecommendationCreatedEvent, 
 }
 
 func Run(ctx context.Context, brokers []string, db *sql.DB, logger *log.Logger) error {
+	return RunWithProvider(ctx, brokers, db, deterministicProvider{}, logger)
+}
+
+func RunWithProvider(ctx context.Context, brokers []string, db *sql.DB, provider PushProvider, logger *log.Logger) error {
 	if len(brokers) == 0 || db == nil {
 		return errors.New("notification worker dependencies are missing")
+	}
+	if provider == nil {
+		return ErrInvalidPushProvider
 	}
 	reader := kafka.NewReader(kafka.ReaderConfig{Brokers: brokers, Topic: RecommendationTopic, GroupID: NotificationConsumer, MinBytes: 1, MaxBytes: 10e6})
 	defer reader.Close()
@@ -75,7 +82,7 @@ func Run(ctx context.Context, brokers []string, db *sql.DB, logger *log.Logger) 
 			continue
 		}
 		_, err = outbox.Process(eventCtx, db, NotificationConsumer, event.EventID, func(ctx context.Context, tx *sql.Tx) error {
-			return deliver(ctx, tx, event)
+			return deliver(ctx, tx, event, provider)
 		})
 		if err != nil {
 			span.RecordError(err)
@@ -91,7 +98,7 @@ func Run(ctx context.Context, brokers []string, db *sql.DB, logger *log.Logger) 
 	}
 }
 
-func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent) error {
+func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent, provider PushProvider) error {
 	settings, userID, err := LoadUserSettings(ctx, tx, event.UserIDHash)
 	if err != nil {
 		return err
@@ -99,21 +106,60 @@ func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent) 
 	if !settings.Enabled || requiredWindow(settings) != nil || !WithinNotificationWindow(time.Now(), settings.Timezone, settings.StartLocal, settings.EndLocal) {
 		return nil
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT subscription_id FROM notification_subscriptions WHERE user_id = $1 AND active = true ORDER BY created_at`, userID)
+	rows, err := tx.QueryContext(ctx, `
+		SELECT ns.subscription_id, ns.endpoint, ns.p256dh, ns.auth, r.copy_title, r.copy_body
+		FROM notification_subscriptions ns
+		JOIN recommendations r ON r.recommendation_id = $2
+		WHERE ns.user_id = $1 AND ns.active = true
+		ORDER BY ns.created_at`, userID, event.RecommendationID)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	type subscriptionDelivery struct {
+		subscription PushSubscription
+		title        string
+		body         string
+	}
+	deliveries := make([]subscriptionDelivery, 0)
 	for rows.Next() {
-		var subscriptionID string
-		if err := rows.Scan(&subscriptionID); err != nil {
+		var delivery subscriptionDelivery
+		if err := rows.Scan(&delivery.subscription.ID, &delivery.subscription.Endpoint, &delivery.subscription.P256DH, &delivery.subscription.Auth, &delivery.title, &delivery.body); err != nil {
+			rows.Close()
 			return err
 		}
+		deliveries = append(deliveries, delivery)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, delivery := range deliveries {
 		notificationID := uuid.NewString()
+		payload, err := json.Marshal(map[string]any{
+			"title": delivery.title,
+			"body":  delivery.body,
+			"data": map[string]string{
+				"recommendation_id": event.RecommendationID,
+				"offer_id":          event.Payload.OfferID,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		status, err := provider.Send(ctx, delivery.subscription, payload)
+		if err != nil {
+			return err
+		}
+		channel, providerName := "push", "webpush"
+		if status == "delivered" {
+			channel, providerName = "demo", "deterministic-mock"
+		}
 		result, err := tx.ExecContext(ctx, `
 			INSERT INTO notification_deliveries (notification_id, subscription_id, user_id, journey_id, recommendation_id, status, attempts)
-			VALUES ($1, $2, $3, $4, $5, 'delivered', 1)
-			ON CONFLICT (subscription_id, recommendation_id) DO NOTHING`, notificationID, subscriptionID, userID, event.JourneyID, event.RecommendationID)
+			VALUES ($1, $2, $3, $4, $5, $6, 1)
+			ON CONFLICT (subscription_id, recommendation_id) DO NOTHING`, notificationID, delivery.subscription.ID, userID, event.JourneyID, event.RecommendationID, status)
 		if err != nil {
 			return err
 		}
@@ -124,7 +170,11 @@ func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent) 
 		if inserted == 0 {
 			continue
 		}
-		for _, eventType := range []string{"notification.sent.v1", "notification.delivered.v1"} {
+		eventTypes := []string{"notification.sent.v1"}
+		if status == "delivered" {
+			eventTypes = append(eventTypes, "notification.delivered.v1")
+		}
+		for _, eventType := range eventTypes {
 			eventID := uuid.NewString()
 			payload, err := json.Marshal(map[string]any{
 				"event_id":          eventID,
@@ -136,7 +186,7 @@ func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent) 
 				"journey_id":        event.JourneyID,
 				"recommendation_id": event.RecommendationID,
 				"user_id_hash":      event.UserIDHash,
-				"payload":           map[string]string{"notification_id": notificationID, "channel": "demo", "provider": "deterministic-mock"},
+				"payload":           map[string]string{"notification_id": notificationID, "channel": channel, "provider": providerName},
 			})
 			if err != nil {
 				return err
@@ -146,5 +196,5 @@ func deliver(ctx context.Context, tx *sql.Tx, event RecommendationCreatedEvent) 
 			}
 		}
 	}
-	return rows.Err()
+	return nil
 }
