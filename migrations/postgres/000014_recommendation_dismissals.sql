@@ -1,4 +1,4 @@
-CREATE TABLE recommendation_dismissals (
+CREATE TABLE IF NOT EXISTS recommendation_dismissals (
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     journey_id TEXT NOT NULL REFERENCES journeys(journey_id) ON DELETE CASCADE,
     recommendation_id TEXT NOT NULL REFERENCES recommendations(recommendation_id) ON DELETE CASCADE,
@@ -7,7 +7,7 @@ CREATE TABLE recommendation_dismissals (
     PRIMARY KEY (user_id, journey_id, recommendation_id, offer_id)
 );
 
-CREATE INDEX recommendation_dismissals_lookup_idx
+CREATE INDEX IF NOT EXISTS recommendation_dismissals_lookup_idx
 ON recommendation_dismissals (journey_id, recommendation_id, offer_id);
 
 INSERT INTO recommendation_dismissals (user_id, journey_id, recommendation_id, offer_id, dismissed_at)
