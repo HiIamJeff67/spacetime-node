@@ -37,6 +37,11 @@ func TestCreateRedemption(t *testing.T) {
 	if created.ID != replayed.ID {
 		t.Fatalf("replay created a different redemption: %s != %s", created.ID, replayed.ID)
 	}
+	secondRedemption := request
+	secondRedemption.IdempotencyKey = "redemption-second-key"
+	if _, err := service.Create(context.Background(), secondRedemption); !errors.Is(err, ErrOfferAlreadyRedeemed) {
+		t.Fatalf("expected ErrOfferAlreadyRedeemed, got %v", err)
+	}
 	conflictingRequest := request
 	conflictingRequest.OfferID = "offer-lunch-xinyi"
 	if _, err := service.Create(context.Background(), conflictingRequest); !errors.Is(err, ErrIdempotencyKeyConflict) {
@@ -211,7 +216,7 @@ func resetDatabase(t *testing.T, db *sql.DB) {
 	if _, err := db.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"000001_core.sql", "000002_demo_seed.sql", "000008_offer_category.sql", "000009_user_preference_weights.sql", "000010_demo_station_catalog.sql", "000011_demo_station_catalog_expansion.sql", "000012_beacon_station_catalog.sql"} {
+	for _, name := range []string{"000001_core.sql", "000002_demo_seed.sql", "000008_offer_category.sql", "000009_user_preference_weights.sql", "000010_demo_station_catalog.sql", "000011_demo_station_catalog_expansion.sql", "000012_beacon_station_catalog.sql", "000013_one_time_redemptions.sql"} {
 		contents, err := os.ReadFile(filepath.Join("..", "..", "migrations", "postgres", name))
 		if err != nil {
 			t.Fatal(err)

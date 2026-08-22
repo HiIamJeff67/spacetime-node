@@ -18,6 +18,7 @@ var (
 	ErrUserNotFound            = errors.New("user not found")
 	ErrJourneyNotFound         = errors.New("journey not found")
 	ErrOfferUnavailable        = errors.New("offer unavailable")
+	ErrOfferAlreadyRedeemed    = errors.New("offer already redeemed")
 	ErrInsufficientPoints      = errors.New("insufficient points")
 	ErrIdempotencyKeyConflict  = errors.New("idempotency key conflict")
 	ErrRedemptionNotFound      = errors.New("redemption not found")
@@ -104,6 +105,19 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (Redemption
 	}
 	if !journeyExists {
 		return Redemption{}, ErrJourneyNotFound
+	}
+
+	var alreadyRedeemed bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM redemptions
+			WHERE user_id = $1 AND offer_id = $2
+			  AND status IN ('succeeded', 'verified')
+		)`, userID, request.OfferID).Scan(&alreadyRedeemed); err != nil {
+		return Redemption{}, err
+	}
+	if alreadyRedeemed {
+		return Redemption{}, ErrOfferAlreadyRedeemed
 	}
 
 	var availableQuantity int

@@ -125,6 +125,8 @@ func mapError(err error) error {
 		return v1.ErrorInvalidRequest("invalid redemption request")
 	case errors.Is(err, ErrJourneyNotFound):
 		return v1.ErrorJourneyNotFound("journey not found")
+	case errors.Is(err, ErrOfferAlreadyRedeemed):
+		return v1.ErrorOfferUnavailable("offer already redeemed")
 	case errors.Is(err, ErrOfferUnavailable):
 		return v1.ErrorOfferUnavailable("offer unavailable")
 	case errors.Is(err, ErrInsufficientPoints):

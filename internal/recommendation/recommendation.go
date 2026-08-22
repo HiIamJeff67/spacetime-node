@@ -223,10 +223,11 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 		}
 	}
 	placeholders := make([]string, len(ids))
-	args := make([]any, 0, len(ids)+1)
+	args := make([]any, 0, len(ids)+2)
 	args = append(args, journeyStation)
+	args = append(args, userID)
 	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		placeholders[i] = fmt.Sprintf("$%d", i+3)
 		args = append(args, id)
 	}
 	query := fmt.Sprintf(`
@@ -234,7 +235,13 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 		       o.is_active, o.starts_at, o.ends_at, i.available_quantity
 		FROM offers o
 		JOIN inventory i ON i.offer_id = o.offer_id
-		WHERE o.station_id = $1 AND o.offer_id IN (%s)`, strings.Join(placeholders, ", "))
+		WHERE o.station_id = $1
+		  AND o.offer_id IN (%s)
+		  AND NOT EXISTS (
+			SELECT 1 FROM redemptions r
+			WHERE r.user_id = $2 AND r.offer_id = o.offer_id
+			  AND r.status IN ('succeeded', 'verified')
+		  )`, strings.Join(placeholders, ", "))
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return Recommendation{}, err
