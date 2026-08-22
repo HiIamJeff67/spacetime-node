@@ -13,3 +13,5 @@ make migrate
 ```
 
 Use `ENV_FILE=/path/to/.env make migrate` when the environment file is elsewhere. The target is safe to repeat: the catalog SQL uses upserts, and the indexer is restarted after the database update so the new offers are embedded into Qdrant.
+
+`000014_recommendation_dismissals.sql` stores dismissed offers per user, journey, and recommendation so refreshed recommendations can exclude them.

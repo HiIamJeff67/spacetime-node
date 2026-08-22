@@ -216,15 +216,34 @@ func (s *Service) GetLatestRecommendation(ctx context.Context, request *v1.GetLa
 	if err := json.Unmarshal(candidatesJSON, &candidates); err != nil {
 		return nil, err
 	}
+	dismissedOffers, err := loadDismissedOffers(ctx, s.db, request.GetJourneyId(), response.RecommendationId)
+	if err != nil {
+		return nil, err
+	}
+	originalOfferID := response.OfferId
+	originalReasons := append([]string(nil), response.Reasons...)
 	response.Candidates = make([]*v1.RecommendationCandidate, 0, len(candidates))
 	response.Offers = make([]*v1.RecommendedOffer, 0, minRecommendationCandidates(s.recommendationCandidateLimit, len(candidates)))
+	selectedOfferID := ""
+	var selectedTitle, selectedBody string
+	var selectedReasons []string
 	for _, candidate := range candidates {
+		if _, dismissed := dismissedOffers[candidate.OfferID]; dismissed {
+			candidate.Eligible = false
+			candidate.Reasons = appendUniqueReason(candidate.Reasons, "dismissed_by_user")
+		}
 		response.Candidates = append(response.Candidates, &v1.RecommendationCandidate{
 			OfferId: candidate.OfferID, VectorScore: candidate.VectorScore, RuleScore: candidate.RuleScore,
 			Eligible: candidate.Eligible, Reasons: candidate.Reasons,
 		})
 		if !candidate.Eligible || candidate.Title == "" {
 			continue
+		}
+		if selectedOfferID == "" {
+			selectedOfferID = candidate.OfferID
+			selectedTitle = candidate.Title
+			selectedBody = candidate.Description
+			selectedReasons = candidate.Reasons
 		}
 		offer := &v1.RecommendedOffer{
 			OfferId: candidate.OfferID, Title: candidate.Title, Body: candidate.Description,
@@ -241,10 +260,56 @@ func (s *Service) GetLatestRecommendation(ctx context.Context, request *v1.GetLa
 			break
 		}
 	}
-	response.Title = title.String
-	response.Body = body.String
+	if selectedOfferID != "" {
+		response.OfferId = selectedOfferID
+		response.Title = selectedTitle
+		response.Body = selectedBody
+		response.Reasons = selectedReasons
+		if selectedOfferID == originalOfferID {
+			response.Title = title.String
+			response.Body = body.String
+			response.Reasons = originalReasons
+		}
+	} else {
+		response.OfferId = ""
+		response.Title = ""
+		response.Body = ""
+		response.Reasons = []string{"no_eligible_offers_remaining"}
+	}
 	response.CopySource = source.String
 	return &response, nil
+}
+
+func loadDismissedOffers(ctx context.Context, db *sql.DB, journeyID, recommendationID string) (map[string]struct{}, error) {
+	dismissed := make(map[string]struct{})
+	rows, err := db.QueryContext(ctx, `
+		SELECT offer_id
+		FROM recommendation_dismissals
+		WHERE journey_id = $1 AND recommendation_id = $2`, journeyID, recommendationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var offerID string
+		if err := rows.Scan(&offerID); err != nil {
+			return nil, err
+		}
+		dismissed[offerID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return dismissed, nil
+}
+
+func appendUniqueReason(reasons []string, reason string) []string {
+	for _, existing := range reasons {
+		if existing == reason {
+			return reasons
+		}
+	}
+	return append(reasons, reason)
 }
 
 func minRecommendationCandidates(limit, count int) int {
@@ -348,6 +413,16 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 	}
 	if err := recommendation.ApplyPreferenceFeedback(ctx, tx, request.GetUserIdHash(), offerID, request.GetEventType()); err != nil {
 		return nil, err
+	}
+	if request.GetEventType() == recommendationDismissedTopic {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO recommendation_dismissals (user_id, journey_id, recommendation_id, offer_id)
+			SELECT j.user_id, $1, $2, $3
+			FROM journeys j
+			WHERE j.journey_id = $1
+			ON CONFLICT DO NOTHING`, journeyID, request.GetRecommendationId(), offerID); err != nil {
+			return nil, err
+		}
 	}
 
 	payload, err := json.Marshal(struct {
