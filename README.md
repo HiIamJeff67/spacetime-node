@@ -97,6 +97,7 @@ KAFKA_BROKERS=localhost:29092 go run ./cmd/analytics-demo \
 
 Web Demo 完成 onboarding 後會以第一個選取站點建立 entry event；推薦服務再以優惠的結構化
 `category` 與使用者偏好比對，不依賴中文標題或描述文字碰巧相符。點擊、標記沒興趣與兌換會累積分類權重，影響下一次排序並留下可解釋 reason；未選站時才使用 R04 作為展示 fallback。
+目前 demo catalog 涵蓋 R04、R03、R09、G12、G07、BL18、BL12、O09，並提供咖啡、午餐、甜點、飲品、速食、便利商店與生活百貨等展示券；既有 VM 請依 [`migrations/postgres/README.md`](migrations/postgres/README.md) 套用最新 catalog migration。
 
 SCRUM-13 的完整交付 runbook、驗收證據與 failure boundary 請見 [`docs/delivery.md`](docs/delivery.md)。
 
