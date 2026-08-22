@@ -20,6 +20,21 @@ curl -fsS http://127.0.0.1:8000/healthz
 curl -fsS http://127.0.0.1:8000/readyz
 ```
 
+To verify the backend Beacon path without a browser, send an observation to the
+Gateway. This demo fixture resolves to `R04`; a real device must send the UUID,
+Major, Minor, and Power read from its Bluetooth scan, and must omit
+`station_id`:
+
+```bash
+curl -fsS http://127.0.0.1:8000/v1/entry-events \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","beacon":{"uuid":"demo-beacon","major":1,"minor":4,"power":0}}'
+```
+
+When a `beacon` object is present, its resolved station is authoritative. A
+conflicting `station_id` is rejected instead of silently producing a
+recommendation for the wrong station.
+
 `CORS_ALLOWED_ORIGINS` should contain only the production frontend origin,
 for example:
 

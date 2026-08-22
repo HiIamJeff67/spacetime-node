@@ -43,7 +43,7 @@
 | 兌換與核銷 | 已完成 | 原子扣點／扣庫存、`Idempotency-Key`、transactional outbox、狀態查詢與商家核銷 mock |
 | 分析與可觀測性 | 已完成基線 | ClickHouse product-event projection、Grafana dashboard、OpenTelemetry traces／metrics／logs |
 | Runtime readiness | 已完成基線 | `/healthz`、dependency-aware `/readyz`、`/version` 語義分離；Kratos graceful shutdown 有 10 秒上限 |
-| Beacon 進站解析 | 已完成 fixture/provider MVP | `mobility-service` 提供 `/v1/mobility/beacon/resolve`；以 SID+LID normalization、短期記憶體 cache、sanitized fixture 與 provider timeout fallback 建立位置 context；Gateway 仍可選擇使用此 API，尚未強制綁定真實 Beacon |
+| Beacon 進站解析 | 已完成 provider MVP | `mobility-service` 提供 `/v1/mobility/beacon/resolve`；Gateway 的 `/v1/entry-events` 可接收 Beacon observation，並以 resolver 的 station／line／position context 建立 journey；純 `station_id` 僅保留給 Demo／相容路徑 |
 | 使用者常用站／消費偏好 | 已完成 demo API | PostgreSQL 保存 profile／偏好，Gateway 提供 `/v1/users/me` 與 `/v1/users/me/preferences`；Redis 只保存可重建摘要 |
 | 推薦行為回饋閉環 | 已完成 demo 版 | impression、click、dismiss、redemption 以 journey／recommendation 關聯；click／dismiss／redemption 在交易內更新 bounded category weights，重播以 deterministic event identity 去重並影響下一次排序 |
 | 手機推播 | 已完成 mock + Web Push MVP | Gateway 提供訂閱註冊／撤銷；PostgreSQL 保存 subscription、worker 依使用者 timezone／時段篩選 `recommendation.created.v1`，可用 VAPID provider 發送加密瀏覽器通知；push service 接受後記錄 sent，mock 才產生 delivered |
@@ -51,7 +51,7 @@
 
 ```mermaid
 flowchart LR
-    App["App / Demo script"] -->|"目前：直接提供 station_id"| Gateway["gateway-service"]
+    App["App / Demo script"] -->|"Beacon observation 或 Demo station_id"| Gateway["gateway-service"]
     Beacon["捷運 Beacon observation"] -->|"UUID / Major / Minor / Power"| Mobility["mobility-service\nBeacon resolver"]
     Mobility -->|"normalized station context"| Gateway
     Gateway --> PG["PostgreSQL + outbox"]
@@ -124,7 +124,7 @@ MVP 採用四個 API 服務與獨立 worker；不依照原始構想拆成七個�
 
 ### Beacon 串接狀態與預計流程
 
-團隊口語中的「進站 becam」應是 **Beacon**。`mobility-service` 現在提供 Beacon resolver；現有 `POST /v1/entry-events` 仍由呼叫端直接傳入內部 `station_id`，因此真實 Beacon 不會阻塞既有 demo 流程。
+團隊口語中的「進站 becam」應是 **Beacon**。`mobility-service` 提供 Beacon resolver；`POST /v1/entry-events` 現在可接收 Beacon observation。含 Beacon 時由 resolver 決定 station／line／position；沒有 Beacon 時才接受直接傳入的 `station_id`，保留既有 Demo 流程。
 
 [SCRUM-38](https://hajimi-o.atlassian.net/browse/SCRUM-38) 記錄的目標來源是 `GetBeaconInfo`：輸入 UUID、Major、Minor、Power 與執行期帳密，回傳 BID、SID、LID、POSINO、POSITION、STATIONID 與站名。預計只由 `mobility-service` 呼叫外部服務，並遵守以下邊界：
 
@@ -163,7 +163,7 @@ sequenceDiagram
     P->>K: Publish asynchronously
 ```
 
-這張圖描述目前的 resolver 邊界；Gateway 尚未強制呼叫 resolver，正式 Beacon provider 與 Gateway 串接可在取得穩定外部契約後再開啟。
+這張圖描述目前的 resolver 邊界；瀏覽器或原生 App 仍需負責取得藍牙 Beacon 的 UUID／Major／Minor，再將 observation 傳給 Gateway。Gateway 不持有北捷 provider 帳密，正式 provider 只由 mobility-service 呼叫。
 
 ## 5. 技術選型
 
@@ -562,7 +562,7 @@ python3 scripts/load-test.py \
 
 ## 15. 後續演進方向
 
-- 將 [SCRUM-38](https://hajimi-o.atlassian.net/browse/SCRUM-38) resolver 接到 Gateway 的可選 Beacon observation path；正式 provider 需先確認外部契約與 credentials。
+- 補上瀏覽器／原生 App 的 Beacon 掃描 adapter，將 UUID／Major／Minor／Power 傳入 Gateway；目前後端已完成 observation path，尚未在 Web bundle 內實作藍牙掃描。
 - 將 user preference API 接上正式身份驗證與 Web app session；目前仍以 `user_id_hash` 作為 demo identity。
 - 以標註案例評估 multilingual embedding，透過 `offer_embeddings_v2` 重建與切換，不在 v1 混用模型。
 - 使用 CWA 天氣 API 替換 mock context provider。

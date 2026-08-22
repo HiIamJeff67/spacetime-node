@@ -48,6 +48,29 @@ func (s *Service) WithRecommendationCandidateLimit(limit int) *Service {
 	return s
 }
 
+func (s *Service) resolveEntryContext(ctx context.Context, request *v1.CreateEntryEventRequest) (string, string, string, error) {
+	stationID := request.GetStationId()
+	lineID := request.GetLineId()
+	positionID := request.GetPositionId()
+	beacon := request.GetBeacon()
+	if beacon == nil {
+		return stationID, lineID, positionID, nil
+	}
+	if s.beaconResolver == nil {
+		return "", "", "", v1.ErrorInvalidRequest("beacon resolver is unavailable")
+	}
+	resolved, err := s.beaconResolver.Resolve(ctx, mobility.Observation{
+		UUID: beacon.GetUuid(), Major: beacon.GetMajor(), Minor: beacon.GetMinor(), Power: beacon.GetPower(),
+	})
+	if err != nil {
+		return "", "", "", v1.ErrorInvalidRequest("beacon context is unavailable")
+	}
+	if stationID != "" && stationID != resolved.StationID {
+		return "", "", "", v1.ErrorInvalidRequest("station_id conflicts with resolved beacon station")
+	}
+	return resolved.StationID, resolved.LineID, resolved.PositionID, nil
+}
+
 func (s *Service) CreateEntryEvent(ctx context.Context, request *v1.CreateEntryEventRequest) (*v1.CreateEntryEventResponse, error) {
 	if s == nil || s.db == nil || request == nil || request.GetUserIdHash() == "" {
 		return nil, v1.ErrorInvalidRequest("user_id_hash and station_id or beacon are required")
@@ -56,27 +79,9 @@ func (s *Service) CreateEntryEvent(ctx context.Context, request *v1.CreateEntryE
 		return nil, v1.ErrorInvalidRequest("user_id_hash must be a sha256 hash")
 	}
 
-	stationID := request.GetStationId()
-	lineID := request.GetLineId()
-	positionID := request.GetPositionId()
-	if stationID == "" && request.GetBeacon() != nil {
-		if s.beaconResolver == nil {
-			return nil, v1.ErrorInvalidRequest("beacon resolver is unavailable")
-		}
-		resolved, err := s.beaconResolver.Resolve(ctx, mobility.Observation{
-			UUID: request.GetBeacon().GetUuid(), Major: request.GetBeacon().GetMajor(),
-			Minor: request.GetBeacon().GetMinor(), Power: request.GetBeacon().GetPower(),
-		})
-		if err != nil {
-			return nil, v1.ErrorInvalidRequest("beacon context is unavailable")
-		}
-		stationID = resolved.StationID
-		if lineID == "" {
-			lineID = resolved.LineID
-		}
-		if positionID == "" {
-			positionID = resolved.PositionID
-		}
+	stationID, lineID, positionID, err := s.resolveEntryContext(ctx, request)
+	if err != nil {
+		return nil, err
 	}
 	if stationID == "" {
 		return nil, v1.ErrorInvalidRequest("user_id_hash and station_id or beacon are required")
