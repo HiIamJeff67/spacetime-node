@@ -25,8 +25,8 @@ func (f fakeProvider) Resolve(context.Context, Observation) (ProviderResponse, e
 }
 
 func TestResolverNormalizesProviderAndCaches(t *testing.T) {
-	resolver := NewResolver(fakeProvider{response: ProviderResponse{SID: "R", LID: "04", POSINO: "exit-3", StationName: "ignored"}}, map[string]StationMapping{
-		"R|04": {StationID: "R04", LineID: "R", StationName: "信義安和"},
+	resolver := NewResolver(fakeProvider{response: ProviderResponse{SID: "R04", LID: "R", POSINO: "exit-3", StationName: "ignored"}}, map[string]StationMapping{
+		"R04|R": {StationID: "R04", LineID: "R", StationName: "信義安和"},
 	}, nil, Context{})
 	first, err := resolver.Resolve(context.Background(), Observation{UUID: "demo", Major: 1, Minor: 4})
 	if err != nil || first.StationID != "R04" || first.Source != "provider" || !first.NearExit {
@@ -35,6 +35,28 @@ func TestResolverNormalizesProviderAndCaches(t *testing.T) {
 	second, err := resolver.Resolve(context.Background(), Observation{UUID: "demo", Major: 1, Minor: 4})
 	if err != nil || second.Source != "cache" {
 		t.Fatalf("unexpected cached context: %+v, %v", second, err)
+	}
+}
+
+func TestResolverNormalizesTRTCStationCode(t *testing.T) {
+	resolver := NewResolver(fakeProvider{response: ProviderResponse{
+		SID: "BL19", LID: "BL", POSINO: "BL19-006", POSITION: "出口 5(富台國宅)", STATIONID: "094", StationName: "永春",
+	}}, nil, nil, Context{})
+
+	resolved, err := resolver.Resolve(context.Background(), Observation{UUID: "trtc", Major: 8, Minor: 55})
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if resolved.StationID != "BL19" || resolved.LineID != "BL" || resolved.StationName != "永春" || resolved.PositionID != "BL19-006" {
+		t.Fatalf("unexpected TRTC context: %+v", resolved)
+	}
+}
+
+func TestDefaultResolverNormalizesMallBeaconAlias(t *testing.T) {
+	resolver := DefaultResolver(fakeProvider{response: ProviderResponse{SID: "BL07MALL", LID: "BL", POSINO: "出口 1", StationName: "板橋"}})
+	resolved, err := resolver.Resolve(context.Background(), Observation{UUID: "mall", Major: 1, Minor: 1})
+	if err != nil || resolved.StationID != "BL07" || resolved.LineID != "BL" {
+		t.Fatalf("unexpected mall alias context: %+v, %v", resolved, err)
 	}
 }
 

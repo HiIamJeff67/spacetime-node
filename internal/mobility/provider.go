@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -31,13 +32,27 @@ func (p *HTTPProvider) Resolve(ctx context.Context, observation Observation) (Pr
 		return ProviderResponse{}, ErrProviderUnavailable
 	}
 	payload, err := json.Marshal(struct {
-		UUID     string `json:"UUID"`
-		Major    int64  `json:"Major"`
-		Minor    int64  `json:"Minor"`
-		Power    int32  `json:"Power"`
-		Username string `json:"Username"`
-		Password string `json:"Password"`
-	}{observation.UUID, observation.Major, observation.Minor, observation.Power, p.username, p.password})
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Beacon   struct {
+			UUID  string `json:"UUID"`
+			Major string `json:"MAJOR"`
+			Minor string `json:"MINOR"`
+			Power string `json:"POWER"`
+		} `json:"beacon"`
+	}{
+		Username: p.username,
+		Password: p.password,
+		Beacon: struct {
+			UUID  string `json:"UUID"`
+			Major string `json:"MAJOR"`
+			Minor string `json:"MINOR"`
+			Power string `json:"POWER"`
+		}{
+			UUID: observation.UUID, Major: strconv.FormatInt(observation.Major, 10),
+			Minor: strconv.FormatInt(observation.Minor, 10), Power: strconv.FormatInt(int64(observation.Power), 10),
+		},
+	})
 	if err != nil {
 		return ProviderResponse{}, ErrProviderUnavailable
 	}
@@ -54,9 +69,14 @@ func (p *HTTPProvider) Resolve(ctx context.Context, observation Observation) (Pr
 	if response.StatusCode/100 != 2 {
 		return ProviderResponse{}, ErrProviderUnavailable
 	}
-	var beacon ProviderResponse
-	if err := json.NewDecoder(response.Body).Decode(&beacon); err != nil {
+	var envelope struct {
+		Data *ProviderResponse `json:"d"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
 		return ProviderResponse{}, ErrProviderUnavailable
 	}
-	return beacon, nil
+	if envelope.Data == nil {
+		return ProviderResponse{}, nil
+	}
+	return *envelope.Data, nil
 }

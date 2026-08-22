@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	v1 "spacetime-node/api/proto/spacetime_node/v1"
+	"spacetime-node/internal/mobility"
 	"spacetime-node/internal/platform/outbox"
 	"spacetime-node/internal/recommendation"
 )
@@ -24,19 +25,50 @@ const (
 
 type Service struct {
 	v1.UnimplementedJourneyServiceServer
-	db *sql.DB
+	db             *sql.DB
+	beaconResolver mobility.Client
 }
 
-func NewService(db *sql.DB) *Service {
-	return &Service{db: db}
+func NewService(db *sql.DB, beaconResolvers ...mobility.Client) *Service {
+	service := &Service{db: db}
+	if len(beaconResolvers) > 0 {
+		service.beaconResolver = beaconResolvers[0]
+	}
+	return service
 }
 
 func (s *Service) CreateEntryEvent(ctx context.Context, request *v1.CreateEntryEventRequest) (*v1.CreateEntryEventResponse, error) {
-	if s == nil || s.db == nil || request == nil || request.GetUserIdHash() == "" || request.GetStationId() == "" {
-		return nil, v1.ErrorInvalidRequest("user_id_hash and station_id are required")
+	if s == nil || s.db == nil || request == nil || request.GetUserIdHash() == "" {
+		return nil, v1.ErrorInvalidRequest("user_id_hash and station_id or beacon are required")
 	}
 	if !validUserIDHash(request.GetUserIdHash()) {
 		return nil, v1.ErrorInvalidRequest("user_id_hash must be a sha256 hash")
+	}
+
+	stationID := request.GetStationId()
+	lineID := request.GetLineId()
+	positionID := request.GetPositionId()
+	if stationID == "" && request.GetBeacon() != nil {
+		if s.beaconResolver == nil {
+			return nil, v1.ErrorInvalidRequest("beacon resolver is unavailable")
+		}
+		resolved, err := s.beaconResolver.Resolve(ctx, mobility.Observation{
+			UUID: request.GetBeacon().GetUuid(), Major: request.GetBeacon().GetMajor(),
+			Minor: request.GetBeacon().GetMinor(), Power: request.GetBeacon().GetPower(),
+		})
+		if err != nil {
+			return nil, v1.ErrorInvalidRequest("beacon context is unavailable")
+		}
+		stationID = resolved.StationID
+		if lineID == "" {
+			lineID = resolved.LineID
+		}
+		if positionID == "" {
+			positionID = resolved.PositionID
+		}
+	}
+	if stationID == "" {
+		return nil, v1.ErrorInvalidRequest("user_id_hash and station_id or beacon are required")
 	}
 
 	traceID := ""
@@ -62,20 +94,19 @@ func (s *Service) CreateEntryEvent(ctx context.Context, request *v1.CreateEntryE
 		return nil, err
 	}
 	var stationLineID string
-	if err := tx.QueryRowContext(ctx, `SELECT line_id FROM stations WHERE station_id = $1`, request.GetStationId()).Scan(&stationLineID); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT line_id FROM stations WHERE station_id = $1`, stationID).Scan(&stationLineID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, v1.ErrorInvalidRequest("station is not registered")
 		}
 		return nil, err
 	}
-	lineID := request.GetLineId()
 	if lineID == "" {
 		lineID = stationLineID
 	}
 
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO journeys (journey_id, user_id, station_id, line_id, position_id)
-		VALUES ($1, $2, $3, $4, $5)`, journeyID, userID, request.GetStationId(), lineID, request.GetPositionId()); err != nil {
+		VALUES ($1, $2, $3, $4, $5)`, journeyID, userID, stationID, lineID, positionID); err != nil {
 		return nil, err
 	}
 
@@ -84,9 +115,9 @@ func (s *Service) CreateEntryEvent(ctx context.Context, request *v1.CreateEntryE
 		LineID     string `json:"line_id,omitempty"`
 		PositionID string `json:"position_id,omitempty"`
 	}{
-		StationID:  request.GetStationId(),
+		StationID:  stationID,
 		LineID:     lineID,
-		PositionID: request.GetPositionId(),
+		PositionID: positionID,
 	})
 	if err != nil {
 		return nil, err

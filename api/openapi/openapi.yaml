@@ -356,6 +356,18 @@ components:
                     format: double
                 near_exit:
                     type: boolean
+        BeaconObservation:
+            type: object
+            properties:
+                uuid:
+                    type: string
+                major:
+                    type: string
+                minor:
+                    type: string
+                power:
+                    type: integer
+                    format: int32
         CreateEntryEventRequest:
             type: object
             properties:
@@ -369,6 +381,8 @@ components:
                     type: string
                 position_id:
                     type: string
+                beacon:
+                    $ref: '#/components/schemas/BeaconObservation'
         CreateEntryEventResponse:
             type: object
             properties:

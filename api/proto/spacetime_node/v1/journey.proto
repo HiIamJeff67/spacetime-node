@@ -36,6 +36,14 @@ message CreateEntryEventRequest {
   string station_id = 3;
   string line_id = 4;
   string position_id = 5;
+  BeaconObservation beacon = 6;
+}
+
+message BeaconObservation {
+  string uuid = 1;
+  int64 major = 2;
+  int64 minor = 3;
+  int32 power = 4;
 }
 
 message CreateEntryEventResponse {

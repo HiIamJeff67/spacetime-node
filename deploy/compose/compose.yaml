@@ -40,6 +40,8 @@ services:
       HTTP_ADDR: :8000
       GRPC_ADDR: :9000
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      MOBILITY_API_URL: ${MOBILITY_API_URL:-http://mobility:8001}
+      MOBILITY_API_TIMEOUT_MS: ${MOBILITY_API_TIMEOUT_MS:-800}
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,6 +50,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
       otel-lgtm:
+        condition: service_started
+      mobility:
         condition: service_started
     ports:
       - "127.0.0.1:8000:8000"

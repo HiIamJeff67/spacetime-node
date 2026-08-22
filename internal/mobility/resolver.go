@@ -21,13 +21,14 @@ type Observation struct {
 }
 
 type ProviderResponse struct {
-	BID         string `json:"BID"`
-	SID         string `json:"SID"`
-	LID         string `json:"LID"`
-	POSINO      string `json:"POSINO"`
-	POSITION    string `json:"POSITION"`
-	STATIONID   string `json:"STATIONID"`
-	StationName string `json:"STATION_NAME"`
+	BID               string `json:"BID"`
+	SID               string `json:"SID"`
+	LID               string `json:"LID"`
+	POSINO            string `json:"POSINO"`
+	POSITION          string `json:"POSITION"`
+	STATIONID         string `json:"STATIONID"`
+	StationName       string `json:"STATION_NAME"`
+	StationNameLegacy string `json:"STATIONNAME"`
 }
 
 type Context struct {
@@ -103,9 +104,21 @@ func (r *Resolver) Resolve(ctx context.Context, observation Observation) (Contex
 }
 
 func (r *Resolver) normalize(response ProviderResponse, source string) (Context, error) {
-	key := strings.ToUpper(strings.TrimSpace(response.SID)) + "|" + strings.TrimSpace(response.LID)
+	sid := strings.ToUpper(strings.TrimSpace(response.SID))
+	lid := strings.ToUpper(strings.TrimSpace(response.LID))
+	key := sid + "|" + lid
 	mapping, ok := r.mappings[key]
-	if !ok || mapping.StationID == "" {
+	if !ok {
+		stationName := strings.TrimSpace(response.StationName)
+		if stationName == "" {
+			stationName = strings.TrimSpace(response.StationNameLegacy)
+		}
+		if sid == "" || lid == "" || stationName == "" {
+			return Context{}, ErrUnmappedBeacon
+		}
+		mapping = StationMapping{StationID: sid, LineID: lid, StationName: stationName}
+	}
+	if mapping.StationID == "" {
 		return Context{}, ErrUnmappedBeacon
 	}
 	position := strings.TrimSpace(response.POSINO)

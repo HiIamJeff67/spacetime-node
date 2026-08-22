@@ -13,6 +13,7 @@ import (
 
 	v1 "spacetime-node/api/proto/spacetime_node/v1"
 	"spacetime-node/internal/journey"
+	"spacetime-node/internal/mobility"
 	"spacetime-node/internal/notification"
 	"spacetime-node/internal/platform/app"
 	"spacetime-node/internal/platform/config"
@@ -35,7 +36,16 @@ func main() {
 	}
 	defer db.Close()
 
-	service := journey.NewService(db)
+	var beaconResolver mobility.Client
+	if strings.TrimSpace(dependencies.MobilityURL) != "" {
+		client, err := mobility.NewHTTPClient(dependencies.MobilityURL, time.Duration(dependencies.MobilityTimeoutMS)*time.Millisecond)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer client.Close()
+		beaconResolver = client
+	}
+	service := journey.NewService(db, beaconResolver)
 	userService := user.NewService(db)
 	redemptionAPI := redemption.NewAPI(redemption.NewService(db))
 	notificationAPI := notification.NewAPI(notification.NewService(db))

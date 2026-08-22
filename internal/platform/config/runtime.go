@@ -40,6 +40,8 @@ type Dependencies struct {
 	BeaconUser           string
 	BeaconPassword       string
 	BeaconTimeoutMS      int
+	MobilityURL          string
+	MobilityTimeoutMS    int
 }
 
 func Load(defaultServiceName, defaultHTTPAddr, defaultGRPCAddr string) Runtime {
@@ -84,10 +86,17 @@ func LoadDependencies() Dependencies {
 		BeaconUser:           os.Getenv("BEACON_API_USERNAME"),
 		BeaconPassword:       os.Getenv("BEACON_API_PASSWORD"),
 		BeaconTimeoutMS:      800,
+		MobilityURL:          os.Getenv("MOBILITY_API_URL"),
+		MobilityTimeoutMS:    800,
 	}
 	if value := os.Getenv("BEACON_API_TIMEOUT_MS"); value != "" {
 		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
 			dependencies.BeaconTimeoutMS = parsed
+		}
+	}
+	if value := os.Getenv("MOBILITY_API_TIMEOUT_MS"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			dependencies.MobilityTimeoutMS = parsed
 		}
 	}
 	if value := os.Getenv("LLM_MODE"); value != "" {

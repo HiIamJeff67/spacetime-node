@@ -29,6 +29,7 @@ type CreateEntryEventRequest struct {
 	StationId      string                 `protobuf:"bytes,3,opt,name=station_id,json=stationId,proto3" json:"station_id,omitempty"`
 	LineId         string                 `protobuf:"bytes,4,opt,name=line_id,json=lineId,proto3" json:"line_id,omitempty"`
 	PositionId     string                 `protobuf:"bytes,5,opt,name=position_id,json=positionId,proto3" json:"position_id,omitempty"`
+	Beacon         *BeaconObservation     `protobuf:"bytes,6,opt,name=beacon,proto3" json:"beacon,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -98,6 +99,81 @@ func (x *CreateEntryEventRequest) GetPositionId() string {
 	return ""
 }
 
+func (x *CreateEntryEventRequest) GetBeacon() *BeaconObservation {
+	if x != nil {
+		return x.Beacon
+	}
+	return nil
+}
+
+type BeaconObservation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uuid          string                 `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Major         int64                  `protobuf:"varint,2,opt,name=major,proto3" json:"major,omitempty"`
+	Minor         int64                  `protobuf:"varint,3,opt,name=minor,proto3" json:"minor,omitempty"`
+	Power         int32                  `protobuf:"varint,4,opt,name=power,proto3" json:"power,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BeaconObservation) Reset() {
+	*x = BeaconObservation{}
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BeaconObservation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BeaconObservation) ProtoMessage() {}
+
+func (x *BeaconObservation) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BeaconObservation.ProtoReflect.Descriptor instead.
+func (*BeaconObservation) Descriptor() ([]byte, []int) {
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *BeaconObservation) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *BeaconObservation) GetMajor() int64 {
+	if x != nil {
+		return x.Major
+	}
+	return 0
+}
+
+func (x *BeaconObservation) GetMinor() int64 {
+	if x != nil {
+		return x.Minor
+	}
+	return 0
+}
+
+func (x *BeaconObservation) GetPower() int32 {
+	if x != nil {
+		return x.Power
+	}
+	return 0
+}
+
 type CreateEntryEventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	JourneyId     string                 `protobuf:"bytes,1,opt,name=journey_id,json=journeyId,proto3" json:"journey_id,omitempty"`
@@ -107,7 +183,7 @@ type CreateEntryEventResponse struct {
 
 func (x *CreateEntryEventResponse) Reset() {
 	*x = CreateEntryEventResponse{}
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[1]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +195,7 @@ func (x *CreateEntryEventResponse) String() string {
 func (*CreateEntryEventResponse) ProtoMessage() {}
 
 func (x *CreateEntryEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[1]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,7 +208,7 @@ func (x *CreateEntryEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateEntryEventResponse.ProtoReflect.Descriptor instead.
 func (*CreateEntryEventResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CreateEntryEventResponse) GetJourneyId() string {
@@ -152,7 +228,7 @@ type GetLatestRecommendationRequest struct {
 
 func (x *GetLatestRecommendationRequest) Reset() {
 	*x = GetLatestRecommendationRequest{}
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[2]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -164,7 +240,7 @@ func (x *GetLatestRecommendationRequest) String() string {
 func (*GetLatestRecommendationRequest) ProtoMessage() {}
 
 func (x *GetLatestRecommendationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[2]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -177,7 +253,7 @@ func (x *GetLatestRecommendationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLatestRecommendationRequest.ProtoReflect.Descriptor instead.
 func (*GetLatestRecommendationRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetLatestRecommendationRequest) GetRequestContext() *RequestContext {
@@ -211,7 +287,7 @@ type GetLatestRecommendationResponse struct {
 
 func (x *GetLatestRecommendationResponse) Reset() {
 	*x = GetLatestRecommendationResponse{}
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[3]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +299,7 @@ func (x *GetLatestRecommendationResponse) String() string {
 func (*GetLatestRecommendationResponse) ProtoMessage() {}
 
 func (x *GetLatestRecommendationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[3]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +312,7 @@ func (x *GetLatestRecommendationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLatestRecommendationResponse.ProtoReflect.Descriptor instead.
 func (*GetLatestRecommendationResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetLatestRecommendationResponse) GetRecommendationId() string {
@@ -316,7 +392,7 @@ type RecordRecommendationEventRequest struct {
 
 func (x *RecordRecommendationEventRequest) Reset() {
 	*x = RecordRecommendationEventRequest{}
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[4]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -328,7 +404,7 @@ func (x *RecordRecommendationEventRequest) String() string {
 func (*RecordRecommendationEventRequest) ProtoMessage() {}
 
 func (x *RecordRecommendationEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[4]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,7 +417,7 @@ func (x *RecordRecommendationEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordRecommendationEventRequest.ProtoReflect.Descriptor instead.
 func (*RecordRecommendationEventRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RecordRecommendationEventRequest) GetRequestContext() *RequestContext {
@@ -395,7 +471,7 @@ type RecordRecommendationEventResponse struct {
 
 func (x *RecordRecommendationEventResponse) Reset() {
 	*x = RecordRecommendationEventResponse{}
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[5]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -407,7 +483,7 @@ func (x *RecordRecommendationEventResponse) String() string {
 func (*RecordRecommendationEventResponse) ProtoMessage() {}
 
 func (x *RecordRecommendationEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[5]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -420,7 +496,7 @@ func (x *RecordRecommendationEventResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use RecordRecommendationEventResponse.ProtoReflect.Descriptor instead.
 func (*RecordRecommendationEventResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RecordRecommendationEventResponse) GetEventId() string {
@@ -444,7 +520,7 @@ type RecommendationCandidate struct {
 
 func (x *RecommendationCandidate) Reset() {
 	*x = RecommendationCandidate{}
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[6]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -456,7 +532,7 @@ func (x *RecommendationCandidate) String() string {
 func (*RecommendationCandidate) ProtoMessage() {}
 
 func (x *RecommendationCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[6]
+	mi := &file_api_proto_spacetime_node_v1_journey_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -469,7 +545,7 @@ func (x *RecommendationCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecommendationCandidate.ProtoReflect.Descriptor instead.
 func (*RecommendationCandidate) Descriptor() ([]byte, []int) {
-	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RecommendationCandidate) GetOfferId() string {
@@ -511,7 +587,7 @@ var File_api_proto_spacetime_node_v1_journey_proto protoreflect.FileDescriptor
 
 const file_api_proto_spacetime_node_v1_journey_proto_rawDesc = "" +
 	"\n" +
-	")api/proto/spacetime_node/v1/journey.proto\x12\x11spacetime_node.v1\x1a(api/proto/spacetime_node/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\xe0\x01\n" +
+	")api/proto/spacetime_node/v1/journey.proto\x12\x11spacetime_node.v1\x1a(api/proto/spacetime_node/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\"\x9e\x02\n" +
 	"\x17CreateEntryEventRequest\x12J\n" +
 	"\x0frequest_context\x18\x01 \x01(\v2!.spacetime_node.v1.RequestContextR\x0erequestContext\x12 \n" +
 	"\fuser_id_hash\x18\x02 \x01(\tR\n" +
@@ -520,7 +596,13 @@ const file_api_proto_spacetime_node_v1_journey_proto_rawDesc = "" +
 	"station_id\x18\x03 \x01(\tR\tstationId\x12\x17\n" +
 	"\aline_id\x18\x04 \x01(\tR\x06lineId\x12\x1f\n" +
 	"\vposition_id\x18\x05 \x01(\tR\n" +
-	"positionId\"9\n" +
+	"positionId\x12<\n" +
+	"\x06beacon\x18\x06 \x01(\v2$.spacetime_node.v1.BeaconObservationR\x06beacon\"i\n" +
+	"\x11BeaconObservation\x12\x12\n" +
+	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x14\n" +
+	"\x05major\x18\x02 \x01(\x03R\x05major\x12\x14\n" +
+	"\x05minor\x18\x03 \x01(\x03R\x05minor\x12\x14\n" +
+	"\x05power\x18\x04 \x01(\x05R\x05power\"9\n" +
 	"\x18CreateEntryEventResponse\x12\x1d\n" +
 	"\n" +
 	"journey_id\x18\x01 \x01(\tR\tjourneyId\"\x8b\x01\n" +
@@ -577,33 +659,35 @@ func file_api_proto_spacetime_node_v1_journey_proto_rawDescGZIP() []byte {
 	return file_api_proto_spacetime_node_v1_journey_proto_rawDescData
 }
 
-var file_api_proto_spacetime_node_v1_journey_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_api_proto_spacetime_node_v1_journey_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_api_proto_spacetime_node_v1_journey_proto_goTypes = []any{
 	(*CreateEntryEventRequest)(nil),           // 0: spacetime_node.v1.CreateEntryEventRequest
-	(*CreateEntryEventResponse)(nil),          // 1: spacetime_node.v1.CreateEntryEventResponse
-	(*GetLatestRecommendationRequest)(nil),    // 2: spacetime_node.v1.GetLatestRecommendationRequest
-	(*GetLatestRecommendationResponse)(nil),   // 3: spacetime_node.v1.GetLatestRecommendationResponse
-	(*RecordRecommendationEventRequest)(nil),  // 4: spacetime_node.v1.RecordRecommendationEventRequest
-	(*RecordRecommendationEventResponse)(nil), // 5: spacetime_node.v1.RecordRecommendationEventResponse
-	(*RecommendationCandidate)(nil),           // 6: spacetime_node.v1.RecommendationCandidate
-	(*RequestContext)(nil),                    // 7: spacetime_node.v1.RequestContext
+	(*BeaconObservation)(nil),                 // 1: spacetime_node.v1.BeaconObservation
+	(*CreateEntryEventResponse)(nil),          // 2: spacetime_node.v1.CreateEntryEventResponse
+	(*GetLatestRecommendationRequest)(nil),    // 3: spacetime_node.v1.GetLatestRecommendationRequest
+	(*GetLatestRecommendationResponse)(nil),   // 4: spacetime_node.v1.GetLatestRecommendationResponse
+	(*RecordRecommendationEventRequest)(nil),  // 5: spacetime_node.v1.RecordRecommendationEventRequest
+	(*RecordRecommendationEventResponse)(nil), // 6: spacetime_node.v1.RecordRecommendationEventResponse
+	(*RecommendationCandidate)(nil),           // 7: spacetime_node.v1.RecommendationCandidate
+	(*RequestContext)(nil),                    // 8: spacetime_node.v1.RequestContext
 }
 var file_api_proto_spacetime_node_v1_journey_proto_depIdxs = []int32{
-	7, // 0: spacetime_node.v1.CreateEntryEventRequest.request_context:type_name -> spacetime_node.v1.RequestContext
-	7, // 1: spacetime_node.v1.GetLatestRecommendationRequest.request_context:type_name -> spacetime_node.v1.RequestContext
-	6, // 2: spacetime_node.v1.GetLatestRecommendationResponse.candidates:type_name -> spacetime_node.v1.RecommendationCandidate
-	7, // 3: spacetime_node.v1.RecordRecommendationEventRequest.request_context:type_name -> spacetime_node.v1.RequestContext
-	0, // 4: spacetime_node.v1.JourneyService.CreateEntryEvent:input_type -> spacetime_node.v1.CreateEntryEventRequest
-	2, // 5: spacetime_node.v1.JourneyService.GetLatestRecommendation:input_type -> spacetime_node.v1.GetLatestRecommendationRequest
-	4, // 6: spacetime_node.v1.JourneyService.RecordRecommendationEvent:input_type -> spacetime_node.v1.RecordRecommendationEventRequest
-	1, // 7: spacetime_node.v1.JourneyService.CreateEntryEvent:output_type -> spacetime_node.v1.CreateEntryEventResponse
-	3, // 8: spacetime_node.v1.JourneyService.GetLatestRecommendation:output_type -> spacetime_node.v1.GetLatestRecommendationResponse
-	5, // 9: spacetime_node.v1.JourneyService.RecordRecommendationEvent:output_type -> spacetime_node.v1.RecordRecommendationEventResponse
-	7, // [7:10] is the sub-list for method output_type
-	4, // [4:7] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	8, // 0: spacetime_node.v1.CreateEntryEventRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	1, // 1: spacetime_node.v1.CreateEntryEventRequest.beacon:type_name -> spacetime_node.v1.BeaconObservation
+	8, // 2: spacetime_node.v1.GetLatestRecommendationRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	7, // 3: spacetime_node.v1.GetLatestRecommendationResponse.candidates:type_name -> spacetime_node.v1.RecommendationCandidate
+	8, // 4: spacetime_node.v1.RecordRecommendationEventRequest.request_context:type_name -> spacetime_node.v1.RequestContext
+	0, // 5: spacetime_node.v1.JourneyService.CreateEntryEvent:input_type -> spacetime_node.v1.CreateEntryEventRequest
+	3, // 6: spacetime_node.v1.JourneyService.GetLatestRecommendation:input_type -> spacetime_node.v1.GetLatestRecommendationRequest
+	5, // 7: spacetime_node.v1.JourneyService.RecordRecommendationEvent:input_type -> spacetime_node.v1.RecordRecommendationEventRequest
+	2, // 8: spacetime_node.v1.JourneyService.CreateEntryEvent:output_type -> spacetime_node.v1.CreateEntryEventResponse
+	4, // 9: spacetime_node.v1.JourneyService.GetLatestRecommendation:output_type -> spacetime_node.v1.GetLatestRecommendationResponse
+	6, // 10: spacetime_node.v1.JourneyService.RecordRecommendationEvent:output_type -> spacetime_node.v1.RecordRecommendationEventResponse
+	8, // [8:11] is the sub-list for method output_type
+	5, // [5:8] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_spacetime_node_v1_journey_proto_init() }
@@ -618,7 +702,7 @@ func file_api_proto_spacetime_node_v1_journey_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_spacetime_node_v1_journey_proto_rawDesc), len(file_api_proto_spacetime_node_v1_journey_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
