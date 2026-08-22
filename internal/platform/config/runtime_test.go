@@ -38,13 +38,14 @@ func TestLoadDependencies(t *testing.T) {
 	t.Setenv("EMBEDDING_MODEL", "multilingual-e5")
 	t.Setenv("EMBEDDING_DIMENSION", "384")
 	t.Setenv("EMBEDDING_COLLECTION", "offer_embeddings_v2")
+	t.Setenv("RECOMMENDATION_CANDIDATE_LIMIT", "12")
 	t.Setenv("NOTIFICATION_PROVIDER", "webpush")
 	t.Setenv("VAPID_SUBJECT", "mailto:demo@example.com")
 	t.Setenv("VAPID_PUBLIC_KEY", "public-key")
 	t.Setenv("VAPID_PRIVATE_KEY", "private-key")
 
 	got := LoadDependencies()
-	if got.KafkaBrokers != "kafka:9092" || got.PostgresDSN != "postgres://example" || got.RedisAddr != "redis:6379" || got.ClickHouseDSN != "clickhouse://clickhouse:9000/default" || got.QdrantURL != "http://qdrant:6333" || got.LLMMode != "provider" || got.LLMBaseURL != "http://llm:8080" || got.LLMModel != "small-model" || got.EmbeddingMode != "http" || got.EmbeddingBaseURL != "http://embedding:8080" || got.EmbeddingModel != "multilingual-e5" || got.EmbeddingDimension != 384 || got.EmbeddingCollection != "offer_embeddings_v2" || got.NotificationProvider != "webpush" || got.VAPIDSubject != "mailto:demo@example.com" || got.VAPIDPublicKey != "public-key" || got.VAPIDPrivateKey != "private-key" {
+	if got.KafkaBrokers != "kafka:9092" || got.PostgresDSN != "postgres://example" || got.RedisAddr != "redis:6379" || got.ClickHouseDSN != "clickhouse://clickhouse:9000/default" || got.QdrantURL != "http://qdrant:6333" || got.LLMMode != "provider" || got.LLMBaseURL != "http://llm:8080" || got.LLMModel != "small-model" || got.EmbeddingMode != "http" || got.EmbeddingBaseURL != "http://embedding:8080" || got.EmbeddingModel != "multilingual-e5" || got.EmbeddingDimension != 384 || got.EmbeddingCollection != "offer_embeddings_v2" || got.RecommendationCandidateLimit != 12 || got.NotificationProvider != "webpush" || got.VAPIDSubject != "mailto:demo@example.com" || got.VAPIDPublicKey != "public-key" || got.VAPIDPrivateKey != "private-key" {
 		t.Fatalf("LoadDependencies() = %+v", got)
 	}
 }

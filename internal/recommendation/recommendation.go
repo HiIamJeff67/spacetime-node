@@ -36,10 +36,24 @@ type RecommendationRequest struct {
 
 type CandidateSummary struct {
 	OfferID     string   `json:"offer_id"`
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
+	StationID   string   `json:"station_id,omitempty"`
+	PointsCost  int64    `json:"points_cost,omitempty"`
 	VectorScore float64  `json:"vector_score"`
 	RuleScore   float64  `json:"rule_score"`
 	Eligible    bool     `json:"eligible"`
 	Reasons     []string `json:"reasons"`
+}
+
+type RecommendedOffer struct {
+	OfferID    string
+	Title      string
+	Body       string
+	Reasons    []string
+	Score      float64
+	PointsCost int64
+	StationID  string
 }
 
 type Recommendation struct {
@@ -54,6 +68,7 @@ type Recommendation struct {
 	CopySource        string
 	DecisionLatencyMS int64
 	Candidates        []CandidateSummary
+	Offers            []RecommendedOffer
 }
 
 type RecommendationService struct {
@@ -65,6 +80,7 @@ type RecommendationService struct {
 	embeddingModel string
 	copyGenerator  CopyGenerator
 	copyTimeout    time.Duration
+	candidateLimit int
 }
 
 func NewRecommendationService(db *sql.DB, qdrant *QdrantClient, preferences *PreferenceStore) *RecommendationService {
@@ -76,7 +92,25 @@ func NewRecommendationService(db *sql.DB, qdrant *QdrantClient, preferences *Pre
 		queryEmbedder:  HashEmbedder(DefaultEmbeddingDimension),
 		embeddingModel: "demo-hash-v1",
 		copyTimeout:    DefaultCopyTimeout,
+		candidateLimit: 10,
 	}
+}
+
+func (s *RecommendationService) WithCandidateLimit(limit int) *RecommendationService {
+	if s != nil && limit > 0 {
+		if limit > 50 {
+			limit = 50
+		}
+		s.candidateLimit = limit
+	}
+	return s
+}
+
+func (s *RecommendationService) CandidateLimit() int {
+	if s == nil || s.candidateLimit < 1 {
+		return 10
+	}
+	return s.candidateLimit
 }
 
 func (s *RecommendationService) WithQueryEmbedder(embedder Embedder) *RecommendationService {
@@ -165,7 +199,7 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 	defer observability.RecordDuration(ctx, "recommendation_duration_ms", started, attribute.String("service.name", "recommendation-service"))
 	limit := request.Limit
 	if limit < 1 {
-		limit = 10
+		limit = s.CandidateLimit()
 	}
 	if limit > 50 {
 		limit = 50
@@ -281,6 +315,10 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 			evaluations = append(evaluations, evaluation{summary: summary})
 			continue
 		}
+		summary.Title = item.Title
+		summary.Description = item.Description
+		summary.StationID = item.StationID
+		summary.PointsCost = item.PointsCost
 		if !item.Active || now.Before(item.StartsAt) || !now.Before(item.EndsAt) {
 			summary.Reasons = append(summary.Reasons, "offer_inactive_or_expired")
 		}
@@ -363,10 +401,24 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 		CopySource:        copySource,
 		DecisionLatencyMS: time.Since(started).Milliseconds(),
 		Candidates:        make([]CandidateSummary, 0, len(evaluations)),
+		Offers:            make([]RecommendedOffer, 0, s.CandidateLimit()),
 	}
 	persistedReasons := append([]string{}, recommendation.Reasons...)
 	for _, item := range evaluations {
 		recommendation.Candidates = append(recommendation.Candidates, item.summary)
+		if item.summary.Eligible && len(recommendation.Offers) < s.CandidateLimit() {
+			offer := RecommendedOffer{
+				OfferID: item.offer.ID, Title: item.offer.Title, Body: item.offer.Description,
+				Reasons: item.summary.Reasons, Score: item.summary.RuleScore,
+				PointsCost: item.offer.PointsCost, StationID: item.offer.StationID,
+			}
+			if item.offer.ID == recommendation.OfferID {
+				offer.Title = recommendation.Title
+				offer.Body = recommendation.Body
+				offer.Reasons = recommendation.Reasons
+			}
+			recommendation.Offers = append(recommendation.Offers, offer)
+		}
 	}
 	reasonsJSON, err := json.Marshal(persistedReasons)
 	if err != nil {
@@ -434,6 +486,26 @@ func (s *RecommendationService) GetLatest(ctx context.Context, journeyID string)
 	recommendation.Body = body.String
 	recommendation.Tone = tone.String
 	recommendation.CopySource = source.String
+	recommendation.Offers = make([]RecommendedOffer, 0, len(recommendation.Candidates))
+	for _, candidate := range recommendation.Candidates {
+		if !candidate.Eligible || candidate.Title == "" {
+			continue
+		}
+		offer := RecommendedOffer{
+			OfferID: candidate.OfferID, Title: candidate.Title, Body: candidate.Description,
+			Reasons: candidate.Reasons, Score: candidate.RuleScore,
+			PointsCost: candidate.PointsCost, StationID: candidate.StationID,
+		}
+		if candidate.OfferID == recommendation.OfferID {
+			offer.Title = recommendation.Title
+			offer.Body = recommendation.Body
+			offer.Reasons = recommendation.Reasons
+		}
+		recommendation.Offers = append(recommendation.Offers, offer)
+		if len(recommendation.Offers) >= s.CandidateLimit() {
+			break
+		}
+	}
 	return recommendation, nil
 }
 

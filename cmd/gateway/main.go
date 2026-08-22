@@ -45,7 +45,7 @@ func main() {
 		defer client.Close()
 		beaconResolver = client
 	}
-	service := journey.NewService(db, beaconResolver)
+	service := journey.NewService(db, beaconResolver).WithRecommendationCandidateLimit(dependencies.RecommendationCandidateLimit)
 	userService := user.NewService(db)
 	redemptionAPI := redemption.NewAPI(redemption.NewService(db))
 	notificationAPI := notification.NewAPI(notification.NewService(db))

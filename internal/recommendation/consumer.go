@@ -99,7 +99,7 @@ func RunEntryConsumer(ctx context.Context, brokers []string, service *Recommenda
 			StationID:  event.Payload.StationID,
 			TraceID:    event.TraceID,
 			Vector:     vector,
-			Limit:      10,
+			Limit:      service.CandidateLimit(),
 		})
 		if err != nil {
 			observability.Logf(eventCtx, logger, "recommendation failed", attribute.String("event_id", event.EventID), attribute.String("journey_id", event.JourneyID), attribute.String("error", err.Error()))

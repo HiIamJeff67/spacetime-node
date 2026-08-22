@@ -430,6 +430,13 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/RecommendationCandidate'
+                offers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RecommendedOffer'
+                    description: |-
+                        Ranked, eligible offers for the client surface. The legacy top-level
+                         fields remain the best offer for existing clients.
         GetRedemptionResponse:
             type: object
             properties:
@@ -466,6 +473,26 @@ components:
                     items:
                         type: string
             description: RecommendationCandidate exposes the explainable boundary between vector recall and rule validation.
+        RecommendedOffer:
+            type: object
+            properties:
+                offer_id:
+                    type: string
+                title:
+                    type: string
+                body:
+                    type: string
+                reasons:
+                    type: array
+                    items:
+                        type: string
+                score:
+                    type: number
+                    format: double
+                points_cost:
+                    type: string
+                station_id:
+                    type: string
         RecordRecommendationEventRequest:
             type: object
             properties:

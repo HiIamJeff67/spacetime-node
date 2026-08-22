@@ -199,7 +199,7 @@ Qdrant 同樣是可重建的衍生索引：`offer.changed.v1` 由 embedding inde
 | 方法 | 路徑 | 用途 |
 |---|---|---|
 | `POST` | `/v1/entry-events` | 模擬使用者在指定站點進站，建立旅程並觸發推薦 |
-| `GET` | `/v1/recommendations/latest?journey_id=...` | 取得最新推薦結果 |
+| `GET` | `/v1/recommendations/latest?journey_id=...` | 取得最新推薦結果；`offers[]` 為排序後的可用候選，舊版 top-level 欄位仍代表第一名 |
 | `POST` | `/v1/redemptions` | 建立兌換；請求需有 `Idempotency-Key` |
 | `GET` | `/v1/redemptions/{redemption_id}` | 查詢兌換與核銷狀態 |
 | `POST` | `/v1/merchant-verifications` | 模擬商家 POS 核銷 |

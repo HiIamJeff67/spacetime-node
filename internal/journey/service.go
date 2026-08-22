@@ -25,16 +25,27 @@ const (
 
 type Service struct {
 	v1.UnimplementedJourneyServiceServer
-	db             *sql.DB
-	beaconResolver mobility.Client
+	db                           *sql.DB
+	beaconResolver               mobility.Client
+	recommendationCandidateLimit int
 }
 
 func NewService(db *sql.DB, beaconResolvers ...mobility.Client) *Service {
-	service := &Service{db: db}
+	service := &Service{db: db, recommendationCandidateLimit: 10}
 	if len(beaconResolvers) > 0 {
 		service.beaconResolver = beaconResolvers[0]
 	}
 	return service
+}
+
+func (s *Service) WithRecommendationCandidateLimit(limit int) *Service {
+	if s != nil && limit > 0 {
+		if limit > 50 {
+			limit = 50
+		}
+		s.recommendationCandidateLimit = limit
+	}
+	return s
 }
 
 func (s *Service) CreateEntryEvent(ctx context.Context, request *v1.CreateEntryEventRequest) (*v1.CreateEntryEventResponse, error) {
@@ -188,6 +199,10 @@ func (s *Service) GetLatestRecommendation(ctx context.Context, request *v1.GetLa
 	}
 	var candidates []struct {
 		OfferID     string   `json:"offer_id"`
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		StationID   string   `json:"station_id"`
+		PointsCost  int64    `json:"points_cost"`
 		VectorScore float64  `json:"vector_score"`
 		RuleScore   float64  `json:"rule_score"`
 		Eligible    bool     `json:"eligible"`
@@ -197,16 +212,41 @@ func (s *Service) GetLatestRecommendation(ctx context.Context, request *v1.GetLa
 		return nil, err
 	}
 	response.Candidates = make([]*v1.RecommendationCandidate, 0, len(candidates))
+	response.Offers = make([]*v1.RecommendedOffer, 0, minRecommendationCandidates(s.recommendationCandidateLimit, len(candidates)))
 	for _, candidate := range candidates {
 		response.Candidates = append(response.Candidates, &v1.RecommendationCandidate{
 			OfferId: candidate.OfferID, VectorScore: candidate.VectorScore, RuleScore: candidate.RuleScore,
 			Eligible: candidate.Eligible, Reasons: candidate.Reasons,
 		})
+		if !candidate.Eligible || candidate.Title == "" {
+			continue
+		}
+		offer := &v1.RecommendedOffer{
+			OfferId: candidate.OfferID, Title: candidate.Title, Body: candidate.Description,
+			Reasons: candidate.Reasons, Score: candidate.RuleScore,
+			PointsCost: candidate.PointsCost, StationId: candidate.StationID,
+		}
+		if candidate.OfferID == response.OfferId {
+			offer.Title = title.String
+			offer.Body = body.String
+			offer.Reasons = response.Reasons
+		}
+		response.Offers = append(response.Offers, offer)
+		if len(response.Offers) >= s.recommendationCandidateLimit {
+			break
+		}
 	}
 	response.Title = title.String
 	response.Body = body.String
 	response.CopySource = source.String
 	return &response, nil
+}
+
+func minRecommendationCandidates(limit, count int) int {
+	if limit < 1 || limit > count {
+		return count
+	}
+	return limit
 }
 
 func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.RecordRecommendationEventRequest) (*v1.RecordRecommendationEventResponse, error) {
@@ -242,9 +282,10 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 	}
 	defer tx.Rollback()
 
-	var offerID string
+	var primaryOfferID string
+	var candidateSummaryJSON []byte
 	err = tx.QueryRowContext(ctx, `
-		SELECT r.offer_id
+		SELECT r.offer_id, r.candidate_summary
 		FROM recommendations r
 		JOIN journeys j ON j.journey_id = r.journey_id
 		JOIN users u ON u.user_id = j.user_id
@@ -252,15 +293,33 @@ func (s *Service) RecordRecommendationEvent(ctx context.Context, request *v1.Rec
 		  AND r.journey_id = $2
 		  AND u.user_id_hash = $3
 		ORDER BY r.created_at DESC
-		LIMIT 1`, request.GetRecommendationId(), journeyID, request.GetUserIdHash()).Scan(&offerID)
+		LIMIT 1`, request.GetRecommendationId(), journeyID, request.GetUserIdHash()).Scan(&primaryOfferID, &candidateSummaryJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, v1.ErrorRecommendationNotFound("recommendation is not associated with this journey")
 	}
 	if err != nil {
 		return nil, err
 	}
-	if request.GetOfferId() != "" && request.GetOfferId() != offerID {
-		return nil, v1.ErrorInvalidRequest("offer_id does not match recommendation")
+	offerID := primaryOfferID
+	if requestedOfferID := request.GetOfferId(); requestedOfferID != "" && requestedOfferID != primaryOfferID {
+		var candidates []struct {
+			OfferID  string `json:"offer_id"`
+			Eligible bool   `json:"eligible"`
+		}
+		if err := json.Unmarshal(candidateSummaryJSON, &candidates); err != nil {
+			return nil, err
+		}
+		allowed := false
+		for _, candidate := range candidates {
+			if candidate.OfferID == requestedOfferID && candidate.Eligible {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return nil, v1.ErrorInvalidRequest("offer_id is not an eligible candidate of this recommendation")
+		}
+		offerID = requestedOfferID
 	}
 	eventID := recommendationFeedbackEventID(
 		request.GetUserIdHash(), journeyID, request.GetRecommendationId(), offerID, request.GetEventType(),

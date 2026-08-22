@@ -65,6 +65,9 @@ message GetLatestRecommendationResponse {
   string copy_source = 7;
   int64 decision_latency_ms = 8;
   repeated RecommendationCandidate candidates = 9;
+  // Ranked, eligible offers for the client surface. The legacy top-level
+  // fields remain the best offer for existing clients.
+  repeated RecommendedOffer offers = 10;
 }
 
 message RecordRecommendationEventRequest {
@@ -87,4 +90,14 @@ message RecommendationCandidate {
   double rule_score = 3;
   bool eligible = 4;
   repeated string reasons = 5;
+}
+
+message RecommendedOffer {
+  string offer_id = 1;
+  string title = 2;
+  string body = 3;
+  repeated string reasons = 4;
+  double score = 5;
+  int64 points_cost = 6;
+  string station_id = 7;
 }

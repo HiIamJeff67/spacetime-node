@@ -54,7 +54,8 @@ func main() {
 		recommendation.NewPreferenceStore(redisClient, recommendation.PreferenceTTL).WithDB(db),
 	).WithQueryEmbedder(embedder).
 		WithEmbeddingModel(dependencies.EmbeddingModel).
-		WithEmbeddingCollection(dependencies.EmbeddingCollection)
+		WithEmbeddingCollection(dependencies.EmbeddingCollection).
+		WithCandidateLimit(dependencies.RecommendationCandidateLimit)
 	if dependencies.LLMMode == "provider" && dependencies.LLMBaseURL != "" && dependencies.LLMModel != "" {
 		service.WithCopyGenerator(recommendation.NewHTTPCopyGenerator(dependencies.LLMBaseURL, dependencies.LLMModel, nil), recommendation.DefaultCopyTimeout)
 	}

@@ -70,6 +70,8 @@ go run ./cmd/redemption
 
 Embedding 預設使用自包含的 `demo-hash-v1`；要切換語意模型，設定 `EMBEDDING_MODE=http`、`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`、實際向量維度與新的 `EMBEDDING_COLLECTION`（例如 `offer_embeddings_v2`）。服務期待 OpenAI-compatible `POST /v1/embeddings`，未設定時不會依賴外部模型服務。
 
+推薦 API 預設回傳最多 10 張排序後的可用候選優惠；營運可在 `.env` 調整 `RECOMMENDATION_CANDIDATE_LIMIT`（1–50），重啟 recommendation 與 gateway service 後生效，不需要 migration。若該站點符合條件的優惠不足，API 會回傳實際可用數量。
+
 要啟用真實 Web Push，先產生一次 VAPID key pair：
 
 ```bash

@@ -39,7 +39,7 @@ func TestRecommendPersistsValidatedOfferAndFallsBackFromInvalidCopy(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if recommendation.OfferID != "offer-coffee-xinyi" || recommendation.CopySource != "template" || len(recommendation.Candidates) != 2 {
+	if recommendation.OfferID != "offer-coffee-xinyi" || recommendation.CopySource != "template" || len(recommendation.Candidates) != 2 || len(recommendation.Offers) != 1 {
 		t.Fatalf("unexpected recommendation: %+v", recommendation)
 	}
 	var categoryMatched bool
