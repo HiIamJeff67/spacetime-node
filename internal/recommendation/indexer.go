@@ -80,6 +80,7 @@ func (i *OfferIndexer) Bootstrap(ctx context.Context, dimension int) error {
 		{name: "station_ids", schema: "keyword"},
 		{name: "category", schema: "keyword"},
 		{name: "content_version", schema: "integer"},
+		{name: "embedding_model", schema: "keyword"},
 	} {
 		if err := i.qdrant.EnsurePayloadIndex(ctx, i.collection, field.name, field.schema); err != nil {
 			return err

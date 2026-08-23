@@ -68,7 +68,7 @@ go run ./cmd/redemption
 
 所有 service 的環境變數一律由 `internal/platform/config` 載入；它集中管理 runtime ports 及 Kafka、PostgreSQL、Redis、ClickHouse、Qdrant、LLM 的連線設定，避免各服務各自解析環境變數。
 
-Embedding 預設使用自包含的 `demo-hash-v1`；要切換語意模型，設定 `EMBEDDING_MODE=http`、`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`、實際向量維度與新的 `EMBEDDING_COLLECTION`（例如 `offer_embeddings_v2`）。服務期待 OpenAI-compatible `POST /v1/embeddings`，未設定時不會依賴外部模型服務。
+Embedding 預設使用自包含的 `demo-hash-v1`；要切換語意模型，設定 `EMBEDDING_MODE=http`、`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`、實際向量維度與新的 `EMBEDDING_COLLECTION`（例如 `offer_embeddings_v2`）。服務期待 OpenAI-compatible `POST /v1/embeddings`，未設定時不會依賴外部模型服務。推薦查詢會額外以 `embedding_model` 精確篩選，避免不同模型混搜；換模型時使用新的 collection，重啟 `embedding-indexer` 會重建 active offers，接著重啟 `recommendation`。
 
 推薦 API 預設回傳最多 10 張排序後的可用候選優惠；營運可在 `.env` 調整 `RECOMMENDATION_CANDIDATE_LIMIT`（1–50），重啟 recommendation 與 gateway service 後生效，不需要 migration。若該站點符合條件的優惠不足，API 會回傳實際可用數量。
 

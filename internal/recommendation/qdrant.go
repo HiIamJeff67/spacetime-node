@@ -54,8 +54,8 @@ func (c *QdrantClient) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (c *QdrantClient) Search(ctx context.Context, collection string, vector []float32, stationID string, limit int) ([]QdrantCandidate, error) {
-	if c == nil || c.client == nil || c.baseURL == "" || collection == "" || len(vector) == 0 || limit < 1 {
+func (c *QdrantClient) Search(ctx context.Context, collection string, vector []float32, stationID, embeddingModel string, limit int) ([]QdrantCandidate, error) {
+	if c == nil || c.client == nil || c.baseURL == "" || collection == "" || len(vector) == 0 || strings.TrimSpace(embeddingModel) == "" || limit < 1 {
 		return nil, ErrCandidateRecall
 	}
 	started := time.Now()
@@ -70,11 +70,15 @@ func (c *QdrantClient) Search(ctx context.Context, collection string, vector []f
 		Limit:       limit,
 		WithPayload: true,
 	}
+	requestBody.Filter = &qdrantFilter{Must: []qdrantCondition{{
+		Key:   "embedding_model",
+		Match: qdrantMatch{Value: embeddingModel},
+	}}}
 	if stationID != "" {
-		requestBody.Filter = &qdrantFilter{Must: []qdrantCondition{{
+		requestBody.Filter.Must = append(requestBody.Filter.Must, qdrantCondition{
 			Key:   "station_ids",
 			Match: qdrantMatch{Any: []string{stationID}},
-		}}}
+		})
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
@@ -130,7 +134,8 @@ type qdrantCondition struct {
 }
 
 type qdrantMatch struct {
-	Any []string `json:"any,omitempty"`
+	Any   []string `json:"any,omitempty"`
+	Value string   `json:"value,omitempty"`
 }
 
 func qdrantID(raw json.RawMessage) string {

@@ -212,7 +212,7 @@ func (s *RecommendationService) Recommend(ctx context.Context, request Recommend
 			return Recommendation{}, err
 		}
 	}
-	candidates, err := s.qdrant.Search(ctx, s.collection, request.Vector, request.StationID, limit)
+	candidates, err := s.qdrant.Search(ctx, s.collection, request.Vector, request.StationID, s.embeddingModel, limit)
 	if err != nil {
 		return Recommendation{}, err
 	}

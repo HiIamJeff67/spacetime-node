@@ -16,6 +16,15 @@ func TestQdrantSearchReturnsOfferIDsFromPayload(t *testing.T) {
 		var request struct {
 			Vector []float32 `json:"vector"`
 			Limit  int       `json:"limit"`
+			Filter struct {
+				Must []struct {
+					Key   string `json:"key"`
+					Match struct {
+						Any   []string `json:"any"`
+						Value string   `json:"value"`
+					} `json:"match"`
+				} `json:"must"`
+			} `json:"filter"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
@@ -23,12 +32,15 @@ func TestQdrantSearchReturnsOfferIDsFromPayload(t *testing.T) {
 		if len(request.Vector) != 2 || request.Limit != 3 {
 			t.Fatalf("unexpected qdrant request body: %+v", request)
 		}
+		if len(request.Filter.Must) != 2 || request.Filter.Must[0].Key != "embedding_model" || request.Filter.Must[0].Match.Value != "demo-hash-v1" || request.Filter.Must[1].Key != "station_ids" || len(request.Filter.Must[1].Match.Any) != 1 || request.Filter.Must[1].Match.Any[0] != "R04" {
+			t.Fatalf("qdrant request did not isolate model and station: %+v", request.Filter.Must)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"result":[{"id":1,"score":0.91,"payload":{"offer_id":"offer-coffee-xinyi"}},{"id":"2","score":0.72,"payload":{}}]}`))
 	}))
 	defer server.Close()
 
-	candidates, err := NewQdrantClient(server.URL, server.Client()).Search(context.Background(), "offer_embeddings_v1", []float32{0.1, 0.2}, "R04", 3)
+	candidates, err := NewQdrantClient(server.URL, server.Client()).Search(context.Background(), "offer_embeddings_v1", []float32{0.1, 0.2}, "R04", "demo-hash-v1", 3)
 	if err != nil {
 		t.Fatal(err)
 	}

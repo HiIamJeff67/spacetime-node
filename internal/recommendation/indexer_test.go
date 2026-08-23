@@ -58,7 +58,7 @@ func TestOfferIndexerBootstrapsAndUpserts(t *testing.T) {
 	if err := indexer.Bootstrap(context.Background(), 2); err != nil {
 		t.Fatal(err)
 	}
-	if !collectionCreated || indexes["station_ids"] != "keyword" || indexes["category"] != "keyword" || indexes["content_version"] != "integer" {
+	if !collectionCreated || indexes["station_ids"] != "keyword" || indexes["category"] != "keyword" || indexes["content_version"] != "integer" || indexes["embedding_model"] != "keyword" {
 		t.Fatalf("unexpected qdrant bootstrap: collection=%v indexes=%v", collectionCreated, indexes)
 	}
 	event := []byte(`{"event_type":"offer.changed.v1","schema_version":1,"payload":{"offer_id":"offer-coffee-xinyi","content_version":2,"change_type":"UPSERT","title":"咖啡","description":"站內咖啡","station_id":"R04","category":"coffee"}}`)
