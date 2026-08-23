@@ -1,6 +1,6 @@
 # Spacetime Node（時空節點）Architecture
 
-> 狀態：進站 fixture → 推薦 → 兌換 → 分析主流程已完成；Beacon adapter 尚未實作，追蹤於 SCRUM-38。
+> 狀態：進站 fixture／Beacon → 推薦 → 兌換 → 分析主流程已完成；Beacon provider、resolver、Redis cache 與 fallback 已完成 MVP。
 > 詳細 MVP 設計與資料流見 [`docs/architecture.md`](../docs/architecture.md)。本文件是目前程式碼與目錄邊界的準則。
 
 ## Repository convention
@@ -11,9 +11,9 @@
 
 `spacetime-node` 是後端優先的捷運情境點數推薦 MVP。展示主流程為：
 
-`station fixture 建立進站 -> 推薦 -> 兌換 -> 商家核銷 mock -> 成效分析`
+`station fixture／Beacon 建立進站 -> 推薦 -> 兌換 -> 商家核銷 mock -> 成效分析`
 
-目標流程會在 `station fixture` 前加入 Beacon 解析；目前不可把這段 planned flow 當成已完成能力。
+目前流程可在 `station fixture` 前加入 Beacon 解析；瀏覽器或原生 App 提供 observation，`mobility-service` 負責 provider 呼叫、normalization、Redis cache 與 fallback。
 
 PostgreSQL 是點數、庫存與兌換的唯一真實來源；Kafka 保存領域事件；ClickHouse 是可由 Kafka 重建的分析 projection；Qdrant 只提供優惠候選召回。
 
@@ -24,13 +24,13 @@ PostgreSQL 是點數、庫存與兌換的唯一真實來源；Kafka 保存領域
 | Component | Responsibility | Owns |
 | --- | --- | --- |
 | `gateway-service` | Demo HTTP API、User profile/preferences、建立 journey、寫入 entry event | 入口協調，不承載推薦或交易規則 |
-| `mobility-service` | 目前只有 health/version 服務骨架；預計成為北捷 Beacon API 的 anti-corruption layer | 尚未擁有業務資料；未來封裝捷運帳密、外部格式與 station/position context |
+| `mobility-service` | 封裝 Beacon provider、SID+LID normalization、Redis／記憶體 cache 與 fixture fallback | 僅由此服務持有 provider secret 與外部格式；輸出 normalized station／position context |
 | `recommendation-service` | Qdrant 候選召回、PostgreSQL 驗證、規則排序、受控文案 | recommendation records 與 explainability |
 | `embedding-indexer` | 消費 `offer.changed.v1`、產生 embedding、更新 Qdrant | `offer_embeddings_v1` 可重建索引 |
 | `redemption-service` | 點數扣除、庫存保留、冪等兌換、核銷 mock、outbox | points ledger、inventory、redemptions |
 | `analytics-consumer` | 消費產品事件並寫入 ClickHouse | 分析 projection；不是交易真實來源 |
 
-`mobility-service` 將是唯一可直接呼叫北捷服務的元件，但 provider client 尚未實作。Beacon 帳密只可存在這個服務的執行期秘密設定，不能進入 Git、log、Kafka 或 trace。
+`mobility-service` 是唯一可直接呼叫北捷服務的元件。provider client 使用執行期秘密設定；Beacon 帳密不能進入 Git、log、Kafka 或 trace。Provider 成功後會將 normalized context 寫入 Redis，並保留 process-local cache 作為 hot cache；Redis 暫時不可用時不阻斷 fixture fallback。
 
 Beacon 回應的 `STATIONID` 是跨轉乘線的站點主鍵，`SID` 與 `LID` 保留線別脈絡，`POSINO`/`POSITION` 只能當作鄰近出口推薦的加分訊號，不能作為點數或兌換的信任依據。
 
@@ -38,11 +38,11 @@ Beacon 回應的 `STATIONID` 是跨轉乘線的站點主鍵，`SID` 與 `LID` �
 
 ```mermaid
 flowchart LR
-    D["Demo client"] -->|"目前：station_id fixture"| G["gateway-service"]
-    B["Beacon observation"] -. "規劃中" .-> M["mobility-service skeleton"]
-    M -. "規劃中：normalized context" .-> G
-    M -. "規劃中" .-> C["Redis cache"]
-    M -. "規劃中：JSON" .-> T["TRTC GetBeaconInfo"]
+    D["Demo client"] -->|"station_id 或 Beacon observation"| G["gateway-service"]
+    B["Beacon observation"] --> M["mobility-service resolver"]
+    M -->|"normalized context"| G
+    M -->|"read/write normalized context"| C["Redis cache"]
+    M -->|"provider JSON"| T["TRTC GetBeaconInfo"]
     G --> P[("PostgreSQL + outbox")]
     P --> K["Kafka"]
     K --> R["recommendation-service"]
@@ -52,7 +52,7 @@ flowchart LR
     A --> H[("ClickHouse")]
 ```
 
-目前 Gateway 直接接收 `station_id` 後記錄 `journey.entered`，推薦由 Kafka event 非同步觸發。目標流程才會先透過 `mobility-service` 解析 Beacon；外部服務失敗時必須退回 cached／station-level fixture，且不能阻塞推薦或兌換。
+Gateway 可接收直接傳入的 `station_id`，也可接收 Beacon observation。含 Beacon 時先透過 `mobility-service` 解析，再記錄 `journey.entered`；推薦由 Kafka event 非同步觸發。外部服務失敗時退回 Redis／process cache 或 station-level fixture，不能阻塞推薦或兌換。
 
 `redemption-service` serializes a user's redemption attempts by locking the user row before checking `Idempotency-Key`, then locks the target inventory row in the same transaction. A replay with the same journey and offer returns the original redemption; reuse for different inputs returns a conflict. The successful transaction also appends a `redemption.succeeded.v1` envelope to PostgreSQL outbox; a Kafka publisher marks it sent only after Kafka accepts it. Consumer side effects run with a `processed_events` insert in one transaction, so replays are skipped.
 
@@ -98,8 +98,7 @@ flowchart LR
 ├── internal/
 │   ├── analytics/                 # ClickHouse projections and consumers
 │   ├── journey/                   # Gateway journey handlers and orchestration
-│   ├── mobility/
-│   │   └── provider/metro/        # Reserved; Beacon provider adapter not implemented yet
+│   ├── mobility/                  # Beacon provider, resolver, cache, fixture fallback
 │   ├── platform/
 │   │   ├── app/                   # Kratos HTTP/gRPC bootstrap and health endpoints
 │   │   ├── config/                # Shared typed environment/configuration loading
@@ -111,8 +110,6 @@ flowchart LR
 ├── migrations/
 │   └── postgres/                  # Ordered schema + deterministic demo seed
 ├── scripts/                       # Repeatable local seed, demo, and verification commands
-├── test/
-│   └── fixtures/metro/            # Reserved; sanitised Beacon fixture planned by SCRUM-38
 ├── .env.example                   # Non-secret local environment template
 ├── Dockerfile                      # One parameterised image for all service binaries
 ├── Makefile                        # Reproducible Proto stub generation
@@ -123,7 +120,7 @@ flowchart LR
 ## Delivery sequence
 
 1. **Sprint 0**: create Kratos entry points, Proto/event contracts, Compose dependencies, migrations, fixtures, and local configuration.
-2. **Sprint 1**: asynchronous recommendation flow 已完成；Beacon resolution、Redis cache 與 fallback 尚待 SCRUM-38。
+2. **Sprint 1**: asynchronous recommendation flow、Beacon resolution、Redis cache 與 fallback 已完成。
 3. **Sprint 2**: add route/arrival/crowding enrichment only as optional context; implement redemption, ClickHouse projection, and LGTM signals.
 4. **Sprint 3**: run the reproducible demo, contract/idempotency/fallback tests, and preserve performance plus business-KPI evidence.
 

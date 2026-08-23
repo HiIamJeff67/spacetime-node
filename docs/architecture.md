@@ -66,10 +66,9 @@ flowchart LR
 
     classDef complete fill:#d7f5df,stroke:#238636,color:#111;
     classDef partial fill:#fff3bf,stroke:#9a6700,color:#111;
-    classDef planned fill:#f2f2f2,stroke:#6e7781,stroke-dasharray:5 5,color:#111;
     class Gateway,PG,Kafka,Recommendation,Qdrant,Analytics,ClickHouse,Redemption complete;
     class App partial;
-    class Beacon,Mobility planned;
+    class Beacon,Mobility complete;
 ```
 
 ## 2. 核心設計原則
@@ -122,11 +121,11 @@ MVP 採用四個 API 服務與獨立 worker；不依照原始構想拆成七個�
 
 `analytics-consumer` 可以先作為獨立 worker，而不是完整 Kratos 對外服務。這樣仍能展示 consumer group、事件解耦和資料投影。
 
-### Beacon 串接狀態與預計流程
+### Beacon 串接狀態與目前流程
 
 團隊口語中的「進站 becam」應是 **Beacon**。`mobility-service` 提供 Beacon resolver；`POST /v1/entry-events` 現在可接收 Beacon observation。含 Beacon 時由 resolver 決定 station／line／position；沒有 Beacon 時才接受直接傳入的 `station_id`，保留既有 Demo 流程。
 
-[SCRUM-38](https://hajimi-o.atlassian.net/browse/SCRUM-38) 記錄的目標來源是 `GetBeaconInfo`：輸入 UUID、Major、Minor、Power 與執行期帳密，回傳 BID、SID、LID、POSINO、POSITION、STATIONID 與站名。預計只由 `mobility-service` 呼叫外部服務，並遵守以下邊界：
+[SCRUM-38](https://hajimi-o.atlassian.net/browse/SCRUM-38) 記錄的來源是 `GetBeaconInfo`：輸入 UUID、Major、Minor、Power 與執行期帳密，回傳 BID、SID、LID、POSINO、POSITION、STATIONID 與站名。目前只由 `mobility-service` 呼叫外部服務，並遵守以下邊界：
 
 - 使用 `SID + LID` 映射內部 `station_id`，保留轉乘線別；不可直接把外部 `STATIONID` 當內部主鍵。
 - `POSINO`／`POSITION` 只提供站內位置或鄰近出口加分，不是到店、扣點或兌換資格證據。
@@ -286,10 +285,11 @@ flowchart LR
 
 ### 7.2 Redis：可重建的暫存資料
 
-推薦服務讀取下列 key；資料遺失後可由 seed data 或離峰預計算重新建立，因此不視為真實來源。
+recommendation-service 與 mobility-service 讀取下列可重建 key；資料遺失後可由 PostgreSQL、provider 或 fixture 重新建立，因此不視為真實來源。
 
 ```text
 preference:{user_id_hash}   # 預測目的地、偏好標籤、有效到期時間
+mobility:beacon:{observation_key} # normalized station / line / position context，TTL 15 分鐘
 dedupe:{event_id}           # 短期事件去重
 rate_limit:{user_id_hash}   # 推播／推薦節流
 ```
@@ -562,7 +562,7 @@ python3 scripts/load-test.py \
 
 ## 15. 後續演進方向
 
-- 補上瀏覽器／原生 App 的 Beacon 掃描 adapter，將 UUID／Major／Minor／Power 傳入 Gateway；目前後端已完成 observation path，尚未在 Web bundle 內實作藍牙掃描。
+- 補上原生 App 的 Beacon 掃描 adapter；目前 Web demo 已由 Chrome Web Bluetooth 將 UUID／Major／Minor／Power 傳入 Gateway，但 iOS Safari 仍不是可靠的掃描環境。
 - 將 user preference API 接上正式身份驗證與 Web app session；目前仍以 `user_id_hash` 作為 demo identity。
 - 以標註案例評估 multilingual embedding，透過 `offer_embeddings_v2` 重建與切換，不在 v1 混用模型。
 - 使用 CWA 天氣 API 替換 mock context provider。

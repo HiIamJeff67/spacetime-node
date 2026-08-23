@@ -4,6 +4,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	v1 "spacetime-node/api/proto/spacetime_node/v1"
 	"spacetime-node/internal/mobility"
 	"spacetime-node/internal/platform/app"
@@ -18,7 +20,12 @@ var version = "dev"
 func main() {
 	dependencies := config.LoadDependencies()
 	provider := mobility.NewHTTPProvider(dependencies.BeaconURL, dependencies.BeaconUser, dependencies.BeaconPassword, time.Duration(dependencies.BeaconTimeoutMS)*time.Millisecond)
-	resolver := mobility.DefaultResolver(provider)
+	var redisClient *redis.Client
+	if dependencies.RedisAddr != "" {
+		redisClient = redis.NewClient(&redis.Options{Addr: dependencies.RedisAddr})
+		defer redisClient.Close()
+	}
+	resolver := mobility.DefaultResolver(provider, redisClient)
 	if err := app.RunWithSetup("mobility-service", ":8001", ":9001", version, func(httpServer *khttp.Server, grpcServer *kgrpc.Server) error {
 		service := mobility.NewService(resolver)
 		v1.RegisterMobilityServiceHTTPServer(httpServer, service)

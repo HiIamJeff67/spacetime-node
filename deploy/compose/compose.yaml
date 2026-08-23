@@ -75,6 +75,8 @@ services:
       BEACON_API_PASSWORD: ${BEACON_API_PASSWORD:-}
       BEACON_API_TIMEOUT_MS: ${BEACON_API_TIMEOUT_MS:-800}
     depends_on:
+      redis:
+        condition: service_healthy
       otel-lgtm:
         condition: service_started
     ports:
