@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	v1 "spacetime-node/api/proto/spacetime_node/v1"
 )
 
@@ -21,6 +23,32 @@ type Service struct {
 	db *sql.DB
 }
 
+const anonymousDemoInitialPoints int64 = 1200
+
+type contextExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+// EnsureDemoUser provisions an anonymous browser-session user on first use.
+// ponytail: demo-only auto-provisioning; replace with authenticated identity when login exists.
+func EnsureDemoUser(ctx context.Context, execer contextExecer, userIDHash string) error {
+	if execer == nil || !validUserIDHash(userIDHash) {
+		return ErrInvalidRequest
+	}
+	userID := uuid.NewString()
+	_, err := execer.ExecContext(ctx, `
+		WITH created AS (
+			INSERT INTO users (user_id, user_id_hash, display_name, point_balance)
+			VALUES ($1, $2, 'Demo Rider', $3)
+			ON CONFLICT (user_id_hash) DO NOTHING
+			RETURNING user_id
+		)
+		INSERT INTO points_ledger (user_id, delta, balance_after, reason)
+		SELECT user_id, $3, $3, 'demo_initial_balance'
+		FROM created`, userID, userIDHash, anonymousDemoInitialPoints)
+	return err
+}
+
 func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
 }
@@ -28,6 +56,9 @@ func NewService(db *sql.DB) *Service {
 func (s *Service) GetUserProfile(ctx context.Context, request *v1.GetUserProfileRequest) (*v1.GetUserProfileResponse, error) {
 	if s == nil || s.db == nil || request == nil || !validUserIDHash(request.GetUserIdHash()) {
 		return nil, v1.ErrorInvalidRequest("user_id_hash must be a sha256 hash")
+	}
+	if err := EnsureDemoUser(ctx, s.db, request.GetUserIdHash()); err != nil {
+		return nil, err
 	}
 	profile, err := s.profile(ctx, request.GetUserIdHash())
 	if err != nil {
@@ -42,6 +73,9 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, request *v1.UpdateU
 	}
 	if err := validatePreferences(request); err != nil {
 		return nil, v1.ErrorInvalidRequest("%s", err)
+	}
+	if err := EnsureDemoUser(ctx, s.db, request.GetUserIdHash()); err != nil {
+		return nil, err
 	}
 	stations, err := json.Marshal(request.GetFavoriteStationIds())
 	if err != nil {

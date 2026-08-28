@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -44,6 +45,39 @@ func TestGetAndUpdateUserPreferences(t *testing.T) {
 	got := updated.GetProfile()
 	if len(got.GetFavoriteStationIds()) != 2 || got.GetBudgetMaxPoints() != 500 || !got.GetNotificationsEnabled() || got.GetNotificationEndLocal() != "10:00" {
 		t.Fatalf("preferences were not persisted: %+v", got)
+	}
+}
+
+func TestAnonymousUserIsProvisioned(t *testing.T) {
+	db := integrationDB(t)
+	resetDatabase(t, db)
+	service := NewService(db)
+	userIDHash := "sha256:" + strings.Repeat("b", 64)
+
+	profile, err := service.GetUserProfile(context.Background(), &v1.GetUserProfileRequest{UserIdHash: userIDHash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.GetProfile().GetUserIdHash() != userIDHash || profile.GetProfile().GetDisplayName() != "Demo Rider" {
+		t.Fatalf("unexpected anonymous profile: %+v", profile.GetProfile())
+	}
+	if _, err := service.GetUserProfile(context.Background(), &v1.GetUserProfileRequest{UserIdHash: userIDHash}); err != nil {
+		t.Fatal(err)
+	}
+
+	var balance int64
+	if err := db.QueryRow(`SELECT point_balance FROM users WHERE user_id_hash = $1`, userIDHash).Scan(&balance); err != nil {
+		t.Fatal(err)
+	}
+	if balance != anonymousDemoInitialPoints {
+		t.Fatalf("unexpected initial balance: %d", balance)
+	}
+	var ledgerCount int
+	if err := db.QueryRow(`SELECT count(*) FROM points_ledger WHERE reason = 'demo_initial_balance' AND user_id = (SELECT user_id FROM users WHERE user_id_hash = $1)`, userIDHash).Scan(&ledgerCount); err != nil {
+		t.Fatal(err)
+	}
+	if ledgerCount != 1 {
+		t.Fatalf("expected one initial ledger entry, got %d", ledgerCount)
 	}
 }
 

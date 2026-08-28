@@ -14,6 +14,7 @@ import (
 	"spacetime-node/internal/mobility"
 	"spacetime-node/internal/platform/outbox"
 	"spacetime-node/internal/recommendation"
+	"spacetime-node/internal/user"
 )
 
 const (
@@ -101,6 +102,9 @@ func (s *Service) CreateEntryEvent(ctx context.Context, request *v1.CreateEntryE
 		return nil, err
 	}
 	defer tx.Rollback()
+	if err := user.EnsureDemoUser(ctx, tx, request.GetUserIdHash()); err != nil {
+		return nil, err
+	}
 
 	var userID string
 	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM users WHERE user_id_hash = $1`, request.GetUserIdHash()).Scan(&userID); err != nil {
